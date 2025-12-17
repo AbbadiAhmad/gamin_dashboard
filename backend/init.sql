@@ -1,0 +1,67 @@
+-- Create coaches table
+CREATE TABLE IF NOT EXISTS coaches (
+    id VARCHAR(255) PRIMARY KEY,
+    first_name VARCHAR(255) NOT NULL,
+    last_name VARCHAR(255) NOT NULL,
+    description TEXT NOT NULL,
+    hourly_rate DECIMAL(10, 2) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Create coach_areas table (many-to-many relationship)
+CREATE TABLE IF NOT EXISTS coach_areas (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    coach_id VARCHAR(255) NOT NULL,
+    area VARCHAR(50) NOT NULL,
+    FOREIGN KEY (coach_id) REFERENCES coaches(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_coach_area (coach_id, area)
+);
+
+-- Create requests table
+CREATE TABLE IF NOT EXISTS requests (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    coach_id VARCHAR(255) NOT NULL,
+    user_email VARCHAR(255) NOT NULL,
+    message TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (coach_id) REFERENCES coaches(id) ON DELETE CASCADE
+);
+
+-- Create indexes for better query performance
+CREATE INDEX idx_coach_areas_coach_id ON coach_areas(coach_id);
+CREATE INDEX idx_requests_coach_id ON requests(coach_id);
+
+-- Create users table for authentication
+CREATE TABLE IF NOT EXISTS users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    role ENUM('administrator', 'evaluator') NOT NULL DEFAULT 'evaluator',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Create index for email lookups
+CREATE INDEX idx_users_email ON users(email);
+
+-- Create setup_status table to track first-time setup
+CREATE TABLE IF NOT EXISTS setup_status (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    is_setup_complete BOOLEAN DEFAULT FALSE,
+    setup_completed_at TIMESTAMP NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Insert initial setup status record
+INSERT INTO setup_status (is_setup_complete) VALUES (FALSE);
+
+-- Create gaming_groups table
+CREATE TABLE IF NOT EXISTS gaming_groups (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);

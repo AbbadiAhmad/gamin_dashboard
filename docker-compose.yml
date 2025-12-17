@@ -1,0 +1,40 @@
+name: game
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: vue-coaches-db
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: coaches_db
+      MYSQL_USER: coaches_user
+      MYSQL_PASSWORD: coaches_pass
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 10s
+      retries: 5
+
+  backend:
+    build: ./backend
+    container_name: vue-coaches-backend
+    environment:
+      DB_HOST: mysql
+      DB_USER: coaches_user
+      DB_PASSWORD: coaches_pass
+      DB_NAME: coaches_db
+      PORT: 3000
+    ports:
+      - "3000:3000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+
+volumes:
+  mysql_data:
