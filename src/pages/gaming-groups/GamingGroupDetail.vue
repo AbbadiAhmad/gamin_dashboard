@@ -110,8 +110,10 @@
                   <span class="game-status" :class="`status-${game.status}`">
                     {{ getStatusLabel(game.status) }}
                   </span>
-                  <div class="game-actions" v-if="isAdmin" @click.stop>
-                    <base-button mode="outline" link :to="`/games/${game.id}/edit`">Edit</base-button>
+                  <div class="game-actions" @click.stop>
+                    <base-button mode="outline" link :to="`/games/${game.id}`">Evaluate</base-button>
+                    <base-button v-if="isAdmin" mode="outline" link :to="`/games/${game.id}/edit`">Edit</base-button>
+                    <base-button v-if="isAdmin" mode="flat" @click="deleteGame(game.id)">Delete</base-button>
                   </div>
                 </li>
               </ul>
@@ -217,6 +219,19 @@ export default {
         this.$router.replace('/gaming-groups');
       } catch (error) {
         this.error = error.message || 'Failed to delete group';
+      }
+    },
+    async deleteGame(gameId) {
+      if (!confirm('Are you sure you want to delete this game? This will also delete all associated scores and scoring configurations.')) {
+        return;
+      }
+      try {
+        await this.$store.dispatch('games/deleteGame', { id: gameId });
+        await this.loadData();
+        await this.calculateScoresQuietly();
+        this.showToast('Game deleted successfully');
+      } catch (error) {
+        this.error = error.message || 'Failed to delete game';
       }
     },
     async addTeamToGroup() {

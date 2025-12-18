@@ -26,12 +26,12 @@
             <span class="count">{{ getGameCountByStatus('past') }}</span>
           </button>
           <button
-            class="filter-badge upcoming-filter"
-            :class="{ active: statusFilters.upcoming }"
-            @click="toggleStatusFilter('upcoming')"
+            class="filter-badge coming-filter"
+            :class="{ active: statusFilters.coming }"
+            @click="toggleStatusFilter('coming')"
           >
             <span class="upcoming-badge">UPCOMING</span>
-            <span class="count">{{ getGameCountByStatus('upcoming') }}</span>
+            <span class="count">{{ getGameCountByStatus('coming') }}</span>
           </button>
         </div>
 
@@ -80,15 +80,15 @@ export default {
       statusFilters: {
         running: true,
         past: true,
-        upcoming: true
+        coming: true
       }
     };
   },
   computed: {
     allGames() {
       const games = this.$store.getters['games/games'];
-      // Order by: 1st status (running > upcoming > past), 2nd gaming group name
-      const statusOrder = { running: 1, upcoming: 2, past: 3 };
+      // Order by: 1st status (running > coming > past), 2nd gaming group name
+      const statusOrder = { running: 1, coming: 2, past: 3 };
       return games.sort((a, b) => {
         // First sort by status
         const statusDiff = statusOrder[a.status] - statusOrder[b.status];
@@ -138,7 +138,7 @@ export default {
     },
     getGameCardClass(status) {
       if (status === 'past') return 'finished-game';
-      if (status === 'upcoming') return 'upcoming-game';
+      if (status === 'coming') return 'upcoming-game';
       return '';
     },
     async loadGames(silent = false) {

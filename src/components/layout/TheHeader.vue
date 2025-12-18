@@ -233,7 +233,7 @@ li {
 .toggle-header-btn {
   position: absolute;
   bottom: -2px;
-  left: 50%;
+  left: 3%;
   transform: translateX(-50%);
   background-color: #3d008d;
   color: white;
