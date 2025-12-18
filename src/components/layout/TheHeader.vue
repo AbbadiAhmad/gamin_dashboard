@@ -1,41 +1,52 @@
 <template>
-  <header>
-    <nav>
-      <h1>
-        <router-link to="/">Gaming Dashboard</router-link>
-      </h1>
-      <ul>
-        <li>
-          <router-link to="/dashboard">Dashboard</router-link>
-        </li>
+  <div>
+    <header :class="{ 'header-hidden': !isHeaderVisible }">
+      <nav v-show="isHeaderVisible">
+        <h1>
+          <router-link to="/">Gaming Dashboard</router-link>
+        </h1>
+        <ul>
+          <li>
+            <router-link to="/dashboard">Dashboard</router-link>
+          </li>
 <!--         <li>
           <router-link to="/coaches">All Coaches</router-link>
         </li>
         <li>
           <router-link to="/requests">Requests</router-link>
         </li> -->
-        <li v-if="isLoggedIn">
-          <router-link to="/gaming-groups">Gaming Groups</router-link>
-        </li>
-        <li v-if="isLoggedIn">
-          <router-link to="/teams">Teams</router-link>
-        </li>
-        <li v-if="!isLoggedIn">
-          <router-link to="/auth">Login</router-link>
-        </li>
-        <li v-if="isLoggedIn">
-          <span class="user-name">{{ userName }}</span>
-        </li>
-        <li v-if="isLoggedIn">
-          <button @click="logout" class="logout-btn">Logout</button>
-        </li>
-      </ul>
-    </nav>
-  </header>
+          <li v-if="isLoggedIn">
+            <router-link to="/gaming-groups">Gaming Groups</router-link>
+          </li>
+          <li v-if="isLoggedIn">
+            <router-link to="/teams">Teams</router-link>
+          </li>
+          <li v-if="!isLoggedIn">
+            <router-link to="/auth">Login</router-link>
+          </li>
+          <li v-if="isLoggedIn">
+            <span class="user-name">{{ userName }}</span>
+          </li>
+          <li v-if="isLoggedIn">
+            <button @click="logout" class="logout-btn">Logout</button>
+          </li>
+        </ul>
+      </nav>
+      <button @click="toggleHeader" class="toggle-header-btn" :title="isHeaderVisible ? 'Hide Header' : 'Show Header'">
+        <span v-if="isHeaderVisible">▲</span>
+        <span v-else>▼</span>
+      </button>
+    </header>
+  </div>
 </template>
 
 <script>
 export default {
+  data() {
+    return {
+      isHeaderVisible: true
+    };
+  },
   computed: {
     isLoggedIn() {
       return this.$store.getters['auth/isAuthenticated'];
@@ -48,6 +59,9 @@ export default {
     logout() {
       this.$store.dispatch('auth/logout');
       this.$router.replace('/auth');
+    },
+    toggleHeader() {
+      this.isHeaderVisible = !this.isHeaderVisible;
     }
   }
 };
@@ -56,11 +70,17 @@ export default {
 <style scoped>
 header {
   width: 100%;
-  height: 5rem;
   background-color: #3d008d;
   display: flex;
   justify-content: center;
   align-items: center;
+  position: relative;
+  transition: height 0.3s ease;
+  height: 5rem;
+}
+
+header.header-hidden {
+  height: 2.5rem;
 }
 
 header a {
@@ -132,5 +152,30 @@ li {
 .logout-btn:hover {
   background-color: #f391e3;
   color: #3d008d;
+}
+
+.toggle-header-btn {
+  position: absolute;
+  bottom: -2px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #3d008d;
+  color: white;
+  border: 2px solid #f391e3;
+  border-radius: 0 0 8px 8px;
+  padding: 0.25rem 1rem;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  z-index: 1000;
+}
+
+.toggle-header-btn:hover {
+  background-color: #f391e3;
+  color: #3d008d;
+}
+
+.header-hidden .toggle-header-btn {
+  bottom: 0.5rem;
 }
 </style>
