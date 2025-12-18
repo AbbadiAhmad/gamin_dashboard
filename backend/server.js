@@ -901,6 +901,194 @@ app.put('/games/reorder', authenticateToken, async (req, res) => {
   }
 });
 
+// ==================== TEAMS ENDPOINTS ====================
+
+// Get all teams
+app.get('/teams', authenticateToken, async (req, res) => {
+  try {
+    const [teams] = await pool.query('SELECT * FROM teams ORDER BY name ASC');
+    res.json(teams);
+  } catch (error) {
+    console.error('Error fetching teams:', error);
+    res.status(500).json({ message: 'Failed to fetch teams' });
+  }
+});
+
+// Get a specific team
+app.get('/teams/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [teams] = await pool.query('SELECT * FROM teams WHERE id = ?', [id]);
+
+    if (teams.length === 0) {
+      return res.status(404).json({ message: 'Team not found' });
+    }
+
+    res.json(teams[0]);
+  } catch (error) {
+    console.error('Error fetching team:', error);
+    res.status(500).json({ message: 'Failed to fetch team' });
+  }
+});
+
+// Create a new team (admin only)
+app.post('/teams', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'administrator') {
+      return res.status(403).json({ message: 'Only administrators can create teams' });
+    }
+
+    const { name, description } = req.body;
+
+    if (!name) {
+      return res.status(400).json({ message: 'Name is required' });
+    }
+
+    const [result] = await pool.query(
+      'INSERT INTO teams (name, description) VALUES (?, ?)',
+      [name, description || '']
+    );
+
+    res.status(201).json({
+      id: result.insertId,
+      name,
+      description: description || ''
+    });
+  } catch (error) {
+    console.error('Error creating team:', error);
+    res.status(500).json({ message: 'Failed to create team' });
+  }
+});
+
+// Update a team (admin only)
+app.put('/teams/:id', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'administrator') {
+      return res.status(403).json({ message: 'Only administrators can update teams' });
+    }
+
+    const { id } = req.params;
+    const { name, description } = req.body;
+
+    if (!name) {
+      return res.status(400).json({ message: 'Name is required' });
+    }
+
+    const [existingTeam] = await pool.query('SELECT id FROM teams WHERE id = ?', [id]);
+    if (existingTeam.length === 0) {
+      return res.status(404).json({ message: 'Team not found' });
+    }
+
+    await pool.query(
+      'UPDATE teams SET name = ?, description = ? WHERE id = ?',
+      [name, description || '', id]
+    );
+
+    res.json({
+      id: parseInt(id),
+      name,
+      description: description || ''
+    });
+  } catch (error) {
+    console.error('Error updating team:', error);
+    res.status(500).json({ message: 'Failed to update team' });
+  }
+});
+
+// Delete a team (admin only)
+app.delete('/teams/:id', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'administrator') {
+      return res.status(403).json({ message: 'Only administrators can delete teams' });
+    }
+
+    const { id } = req.params;
+
+    const [existingTeam] = await pool.query('SELECT id FROM teams WHERE id = ?', [id]);
+    if (existingTeam.length === 0) {
+      return res.status(404).json({ message: 'Team not found' });
+    }
+
+    await pool.query('DELETE FROM teams WHERE id = ?', [id]);
+
+    res.json({ message: 'Team deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting team:', error);
+    res.status(500).json({ message: 'Failed to delete team' });
+  }
+});
+
+// Add team to gaming group (admin only)
+app.post('/gaming-groups/:groupId/teams', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'administrator') {
+      return res.status(403).json({ message: 'Only administrators can add teams to groups' });
+    }
+
+    const { groupId } = req.params;
+    const { teamId, score } = req.body;
+
+    if (!teamId) {
+      return res.status(400).json({ message: 'Team ID is required' });
+    }
+
+    const [result] = await pool.query(
+      'INSERT INTO gaming_group_teams (gaming_group_id, team_id, score) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE score = ?',
+      [groupId, teamId, score || 0, score || 0]
+    );
+
+    res.status(201).json({
+      gamingGroupId: parseInt(groupId),
+      teamId: parseInt(teamId),
+      score: score || 0
+    });
+  } catch (error) {
+    console.error('Error adding team to group:', error);
+    res.status(500).json({ message: 'Failed to add team to gaming group' });
+  }
+});
+
+// Get teams in a gaming group
+app.get('/gaming-groups/:groupId/teams', authenticateToken, async (req, res) => {
+  try {
+    const { groupId } = req.params;
+
+    const [teams] = await pool.query(`
+      SELECT t.*, ggt.score
+      FROM teams t
+      INNER JOIN gaming_group_teams ggt ON t.id = ggt.team_id
+      WHERE ggt.gaming_group_id = ?
+      ORDER BY ggt.score DESC, t.name ASC
+    `, [groupId]);
+
+    res.json(teams);
+  } catch (error) {
+    console.error('Error fetching gaming group teams:', error);
+    res.status(500).json({ message: 'Failed to fetch teams' });
+  }
+});
+
+// Remove team from gaming group (admin only)
+app.delete('/gaming-groups/:groupId/teams/:teamId', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'administrator') {
+      return res.status(403).json({ message: 'Only administrators can remove teams from groups' });
+    }
+
+    const { groupId, teamId } = req.params;
+
+    await pool.query(
+      'DELETE FROM gaming_group_teams WHERE gaming_group_id = ? AND team_id = ?',
+      [groupId, teamId]
+    );
+
+    res.json({ message: 'Team removed from gaming group successfully' });
+  } catch (error) {
+    console.error('Error removing team from group:', error);
+    res.status(500).json({ message: 'Failed to remove team from gaming group' });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

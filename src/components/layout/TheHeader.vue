@@ -14,6 +14,9 @@
         <li v-if="isLoggedIn">
           <router-link to="/gaming-groups">Gaming Groups</router-link>
         </li>
+        <li v-if="isLoggedIn">
+          <router-link to="/teams">Teams</router-link>
+        </li>
         <li v-if="!isLoggedIn">
           <router-link to="/auth">Login</router-link>
         </li>

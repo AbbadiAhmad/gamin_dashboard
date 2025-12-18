@@ -12,6 +12,7 @@
     <div class="actions">
       <base-button mode="outline" link :to="editLink">Edit</base-button>
       <base-button link :to="viewLink">View Details</base-button>
+      <base-button mode="flat" @click="deleteGame">Delete</base-button>
     </div>
   </li>
 </template>
@@ -53,6 +54,11 @@ export default {
     },
     statusClass() {
       return 'status-' + this.status;
+    }
+  },
+  methods: {
+    deleteGame() {
+      this.$emit('delete', this.id);
     }
   }
 };

@@ -99,3 +99,29 @@ CREATE TABLE IF NOT EXISTS game_scoring (
 CREATE INDEX idx_games_gaming_group_id ON games(gaming_group_id);
 CREATE INDEX idx_games_status ON games(status);
 CREATE INDEX idx_game_scoring_game_id ON game_scoring(game_id);
+
+-- Create teams table
+CREATE TABLE IF NOT EXISTS teams (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Create gaming_group_teams junction table (many-to-many)
+CREATE TABLE IF NOT EXISTS gaming_group_teams (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    gaming_group_id INT NOT NULL,
+    team_id INT NOT NULL,
+    score INT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (gaming_group_id) REFERENCES gaming_groups(id) ON DELETE CASCADE,
+    FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_group_team (gaming_group_id, team_id)
+);
+
+-- Create indexes
+CREATE INDEX idx_gaming_group_teams_group_id ON gaming_group_teams(gaming_group_id);
+CREATE INDEX idx_gaming_group_teams_team_id ON gaming_group_teams(team_id);

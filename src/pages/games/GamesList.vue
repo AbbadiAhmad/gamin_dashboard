@@ -23,6 +23,7 @@
             :maximum-point="game.maximumPoint"
             :gaming-group-name="game.gamingGroupName"
             :status="game.status"
+            @delete="handleDelete"
           ></game-item>
         </ul>
         <h3 v-else>No games found.</h3>
@@ -75,6 +76,18 @@ export default {
         this.error = error.message || 'Something went wrong!';
       }
       this.isLoading = false;
+    },
+    async handleDelete(gameId) {
+      if (!confirm('Are you sure you want to delete this game?')) {
+        return;
+      }
+
+      try {
+        await this.$store.dispatch('games/deleteGame', { id: gameId });
+        await this.loadGames(true);
+      } catch (error) {
+        this.error = error.message || 'Failed to delete game';
+      }
     },
     handleError() {
       this.error = null;
