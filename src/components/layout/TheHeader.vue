@@ -6,8 +6,19 @@
           <router-link to="/">Gaming Dashboard</router-link>
         </h1>
         <ul>
-          <li>
-            <router-link to="/dashboard">Dashboard</router-link>
+          <li class="dropdown">
+            <button @click="toggleDropdown" class="dropdown-btn">
+              Dashboard
+              <span class="arrow">{{ showDropdown ? '▲' : '▼' }}</span>
+            </button>
+            <ul v-if="showDropdown" class="dropdown-menu">
+              <li>
+                <router-link to="/dashboard" @click="closeDropdown">Game Dashboard</router-link>
+              </li>
+              <li>
+                <router-link to="/dashboard/gaming-groups" @click="closeDropdown">Gaming Groups Dashboard</router-link>
+              </li>
+            </ul>
           </li>
 <!--         <li>
           <router-link to="/coaches">All Coaches</router-link>
@@ -44,7 +55,8 @@
 export default {
   data() {
     return {
-      isHeaderVisible: true
+      isHeaderVisible: true,
+      showDropdown: false
     };
   },
   computed: {
@@ -62,6 +74,12 @@ export default {
     },
     toggleHeader() {
       this.isHeaderVisible = !this.isHeaderVisible;
+    },
+    toggleDropdown() {
+      this.showDropdown = !this.showDropdown;
+    },
+    closeDropdown() {
+      this.showDropdown = false;
     }
   }
 };
@@ -131,6 +149,64 @@ header ul {
 
 li {
   margin: 0 0.5rem;
+  position: relative;
+}
+
+.dropdown {
+  position: relative;
+}
+
+.dropdown-btn {
+  background-color: transparent;
+  border: 1px solid transparent;
+  color: #f391e3;
+  padding: 0.75rem 1.5rem;
+  cursor: pointer;
+  font: inherit;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.2s;
+}
+
+.dropdown-btn:hover {
+  border: 1px solid #f391e3;
+}
+
+.arrow {
+  font-size: 0.7rem;
+  transition: transform 0.3s;
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background-color: #3d008d;
+  border: 2px solid #f391e3;
+  border-radius: 4px;
+  list-style: none;
+  margin: 0.5rem 0 0 0;
+  padding: 0;
+  min-width: 200px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  z-index: 1000;
+}
+
+.dropdown-menu li {
+  margin: 0;
+}
+
+.dropdown-menu a {
+  display: block;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  white-space: nowrap;
+}
+
+.dropdown-menu a:hover {
+  background-color: #f391e3;
+  color: #3d008d;
 }
 
 .user-name {

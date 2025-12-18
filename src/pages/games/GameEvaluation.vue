@@ -53,6 +53,7 @@
                   :min="game.minimumPoint"
                   :max="game.maximumPoint"
                   v-model.number="teamScores[team.id]"
+                  @change="saveTeamScore(team.id)"
                   @blur="saveTeamScore(team.id)"
                   @keyup.enter="saveTeamScore(team.id)"
                   :class="{ invalid: !isValidScore(teamScores[team.id]) }"

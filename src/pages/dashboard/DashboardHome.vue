@@ -6,24 +6,52 @@
     <section>
       <base-card>
         <h1>Games Dashboard</h1>
-        <p class="subtitle">Watch live and finished games</p>
+        <p class="subtitle">All games - click status badges to filter</p>
+
+        <div class="status-filters">
+          <button
+            class="filter-badge running-filter"
+            :class="{ active: statusFilters.running }"
+            @click="toggleStatusFilter('running')"
+          >
+            <span class="live-badge">LIVE</span>
+            <span class="count">{{ getGameCountByStatus('running') }}</span>
+          </button>
+          <button
+            class="filter-badge finished-filter"
+            :class="{ active: statusFilters.past }"
+            @click="toggleStatusFilter('past')"
+          >
+            <span class="finished-badge">FINISHED</span>
+            <span class="count">{{ getGameCountByStatus('past') }}</span>
+          </button>
+          <button
+            class="filter-badge upcoming-filter"
+            :class="{ active: statusFilters.upcoming }"
+            @click="toggleStatusFilter('upcoming')"
+          >
+            <span class="upcoming-badge">UPCOMING</span>
+            <span class="count">{{ getGameCountByStatus('upcoming') }}</span>
+          </button>
+        </div>
 
         <div v-if="isLoading" class="loading">
           <base-spinner></base-spinner>
         </div>
 
-        <div v-else-if="activeGames.length > 0" class="games-grid">
+        <div v-else-if="filteredGames.length > 0" class="games-grid">
           <div
-            v-for="game in activeGames"
+            v-for="game in filteredGames"
             :key="game.id"
             class="game-card"
-            :class="{ 'finished-game': game.status === 'past' }"
+            :class="getGameCardClass(game.status)"
             @click="goToLiveGame(game.id)"
           >
             <div class="game-card-header">
               <h3>{{ game.name }}</h3>
               <span v-if="game.status === 'running'" class="live-badge">LIVE</span>
               <span v-else-if="game.status === 'past'" class="finished-badge">FINISHED</span>
+              <span v-else class="upcoming-badge">UPCOMING</span>
             </div>
             <p class="game-description">{{ game.description }}</p>
             <div class="game-meta">
@@ -34,8 +62,8 @@
         </div>
 
         <div v-else class="no-games">
-          <h3>No active games</h3>
-          <p>Check back later for live games!</p>
+          <h3>No games found</h3>
+          <p>{{ noGamesMessage }}</p>
         </div>
       </base-card>
     </section>
@@ -48,20 +76,45 @@ export default {
     return {
       isLoading: false,
       error: null,
-      refreshInterval: null
+      refreshInterval: null,
+      statusFilters: {
+        running: true,
+        past: true,
+        upcoming: true
+      }
     };
   },
   computed: {
-    activeGames() {
+    allGames() {
       const games = this.$store.getters['games/games'];
-      // Show both running and past games
-      return games.filter(game => game.status === 'running' || game.status === 'past')
-        .sort((a, b) => {
-          // Running games first, then past games
-          if (a.status === 'running' && b.status === 'past') return -1;
-          if (a.status === 'past' && b.status === 'running') return 1;
-          return 0;
-        });
+      // Order by: 1st status (running > upcoming > past), 2nd gaming group name
+      const statusOrder = { running: 1, upcoming: 2, past: 3 };
+      return games.sort((a, b) => {
+        // First sort by status
+        const statusDiff = statusOrder[a.status] - statusOrder[b.status];
+        if (statusDiff !== 0) return statusDiff;
+
+        // Then sort by gaming group name
+        return (a.gamingGroupName || '').localeCompare(b.gamingGroupName || '');
+      });
+    },
+    filteredGames() {
+      return this.allGames.filter(game => this.statusFilters[game.status]);
+    },
+    noGamesMessage() {
+      const activeFiltersCount = Object.values(this.statusFilters)
+        .filter(active => active).length;
+
+      if (activeFiltersCount === 0) {
+        return 'Please select at least one status filter above.';
+      }
+
+      const allGamesCount = this.allGames.length;
+      if (allGamesCount === 0) {
+        return 'No games available. Create some games to get started!';
+      }
+
+      return 'No games match the selected filters.';
     }
   },
   async created() {
@@ -77,6 +130,17 @@ export default {
     }
   },
   methods: {
+    toggleStatusFilter(status) {
+      this.statusFilters[status] = !this.statusFilters[status];
+    },
+    getGameCountByStatus(status) {
+      return this.allGames.filter(game => game.status === status).length;
+    },
+    getGameCardClass(status) {
+      if (status === 'past') return 'finished-game';
+      if (status === 'upcoming') return 'upcoming-game';
+      return '';
+    },
     async loadGames(silent = false) {
       if (!silent) {
         this.isLoading = true;
@@ -108,7 +172,54 @@ h1 {
 .subtitle {
   font-size: 1.2rem;
   color: #666;
-  margin: 0 0 2rem 0;
+  margin: 0 0 1.5rem 0;
+}
+
+.status-filters {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+}
+
+.filter-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border: 2px solid transparent;
+  border-radius: 25px;
+  background: #f5f5f5;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font: inherit;
+}
+
+.filter-badge:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.filter-badge.active {
+  border-color: #3d008d;
+  background: white;
+  box-shadow: 0 2px 8px rgba(61, 0, 141, 0.2);
+}
+
+.filter-badge .count {
+  background: #3d008d;
+  color: white;
+  padding: 0.15rem 0.5rem;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: bold;
+  min-width: 24px;
+  text-align: center;
+}
+
+.filter-badge.active .count {
+  background: #f391e3;
+  color: #3d008d;
 }
 
 .loading {
@@ -169,9 +280,22 @@ h1 {
   font-weight: bold;
 }
 
+.upcoming-badge {
+  background: #FF9800;
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: bold;
+}
+
 .finished-game {
   background: linear-gradient(135deg, #81C784 0%, #66BB6A 100%) !important;
   opacity: 0.9;
+}
+
+.upcoming-game {
+  background: linear-gradient(135deg, #FFB74D 0%, #FFA726 100%) !important;
 }
 
 @keyframes pulse {

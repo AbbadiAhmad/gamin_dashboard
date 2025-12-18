@@ -452,10 +452,50 @@ app.post('/requests/:coachId', async (req, res) => {
 app.get('/gaming-groups', authenticateToken, async (req, res) => {
   try {
     const [groups] = await pool.query('SELECT * FROM gaming_groups ORDER BY created_at DESC');
-    res.json(groups);
+
+    // Convert show_in_dashboard to boolean
+    const formattedGroups = groups.map(group => ({
+      ...group,
+      showInDashboard: Boolean(group.show_in_dashboard)
+    }));
+
+    res.json(formattedGroups);
   } catch (error) {
     console.error('Error fetching gaming groups:', error);
     res.status(500).json({ message: 'Failed to fetch gaming groups' });
+  }
+});
+
+// Get gaming groups for dashboard (public access)
+app.get('/dashboard/gaming-groups', async (req, res) => {
+  try {
+    const [groups] = await pool.query(`
+      SELECT gg.id, gg.name, gg.description
+      FROM gaming_groups gg
+      WHERE gg.show_in_dashboard = true
+      ORDER BY gg.name ASC
+    `);
+
+    // For each group, get the teams with their scores
+    const groupsWithTeams = await Promise.all(groups.map(async (group) => {
+      const [teams] = await pool.query(`
+        SELECT t.id, t.name, t.description, ggt.score
+        FROM teams t
+        INNER JOIN gaming_group_teams ggt ON t.id = ggt.team_id
+        WHERE ggt.gaming_group_id = ?
+        ORDER BY ggt.score DESC, t.name ASC
+      `, [group.id]);
+
+      return {
+        ...group,
+        teams
+      };
+    }));
+
+    res.json(groupsWithTeams);
+  } catch (error) {
+    console.error('Error fetching dashboard gaming groups:', error);
+    res.status(500).json({ message: 'Failed to fetch dashboard data' });
   }
 });
 
@@ -484,7 +524,7 @@ app.post('/gaming-groups', authenticateToken, async (req, res) => {
       return res.status(403).json({ message: 'Only administrators can create gaming groups' });
     }
 
-    const { name, description } = req.body;
+    const { name, description, showInDashboard } = req.body;
 
     // Validate input
     if (!name) {
@@ -492,14 +532,15 @@ app.post('/gaming-groups', authenticateToken, async (req, res) => {
     }
 
     const [result] = await pool.query(
-      'INSERT INTO gaming_groups (name, description) VALUES (?, ?)',
-      [name, description || '']
+      'INSERT INTO gaming_groups (name, description, show_in_dashboard) VALUES (?, ?, ?)',
+      [name, description || '', showInDashboard || false]
     );
 
     res.status(201).json({
       id: result.insertId,
       name,
-      description: description || ''
+      description: description || '',
+      showInDashboard: showInDashboard || false
     });
   } catch (error) {
     console.error('Error creating gaming group:', error);
@@ -516,7 +557,7 @@ app.put('/gaming-groups/:id', authenticateToken, async (req, res) => {
     }
 
     const { id } = req.params;
-    const { name, description } = req.body;
+    const { name, description, showInDashboard } = req.body;
 
     // Validate input
     if (!name) {
@@ -530,14 +571,15 @@ app.put('/gaming-groups/:id', authenticateToken, async (req, res) => {
     }
 
     await pool.query(
-      'UPDATE gaming_groups SET name = ?, description = ? WHERE id = ?',
-      [name, description || '', id]
+      'UPDATE gaming_groups SET name = ?, description = ?, show_in_dashboard = ? WHERE id = ?',
+      [name, description || '', showInDashboard !== undefined ? showInDashboard : false, id]
     );
 
     res.json({
       id: parseInt(id),
       name,
-      description: description || ''
+      description: description || '',
+      showInDashboard: showInDashboard || false
     });
   } catch (error) {
     console.error('Error updating gaming group:', error);
@@ -921,8 +963,111 @@ app.get('/games/:id/scores', async (req, res) => {
   }
 });
 
+// Helper function to calculate and update scores for a gaming group
+async function calculateGroupScores(connection, groupId) {
+  // Get all teams in the gaming group
+  const [teams] = await connection.query(
+    'SELECT team_id FROM gaming_group_teams WHERE gaming_group_id = ?',
+    [groupId]
+  );
+
+  if (teams.length === 0) {
+    return;
+  }
+
+  // Get all games in the gaming group
+  const [games] = await connection.query(
+    'SELECT id FROM games WHERE gaming_group_id = ?',
+    [groupId]
+  );
+
+  const teamScores = {};
+
+  // Initialize scores for all teams
+  teams.forEach(team => {
+    teamScores[team.team_id] = 0;
+  });
+
+  // Process each game
+  for (const game of games) {
+    const gameId = game.id;
+
+    // Get all team scores for this game
+    const [gameScores] = await connection.query(
+      `SELECT team_id, score
+       FROM game_scores
+       WHERE game_id = ? AND team_id IN (?)`,
+      [gameId, teams.map(t => t.team_id)]
+    );
+
+    // Get scoring configuration for this game
+    const [scoringConfig] = await connection.query(
+      'SELECT place, score FROM game_scoring WHERE game_id = ? ORDER BY place ASC',
+      [gameId]
+    );
+
+    console.log(`Game ${gameId}: ${gameScores.length} scores, ${scoringConfig.length} scoring rules`);
+
+    if (gameScores.length === 0 || scoringConfig.length === 0) {
+      // Skip games without scores or scoring configuration
+      continue;
+    }
+
+    // Sort teams by their game scores (descending) to determine placements
+    const sortedTeams = gameScores.sort((a, b) => b.score - a.score);
+
+    // Assign placements and calculate points
+    let currentPlace = 1;
+    let previousScore = null;
+
+    for (let i = 0; i < sortedTeams.length; i++) {
+      const teamScore = sortedTeams[i];
+
+      // Handle ties - teams with same score get same placement
+      if (previousScore !== null && teamScore.score < previousScore) {
+        currentPlace = i + 1;
+      }
+
+      // Find the points for this placement in scoring config
+      let pointsAwarded = 0;
+      const exactMatch = scoringConfig.find(sc => sc.place === currentPlace);
+
+      if (exactMatch) {
+        pointsAwarded = exactMatch.score;
+      } else {
+        // Look for "other" placement (place = -1)
+        const otherMatch = scoringConfig.find(sc => sc.place === -1);
+        if (otherMatch) {
+          pointsAwarded = otherMatch.score;
+        }
+      }
+
+      console.log(`  Team ${teamScore.team_id}: game score ${teamScore.score}, place ${currentPlace}, points awarded ${pointsAwarded}`);
+
+      // Add points to team's total score
+      teamScores[teamScore.team_id] += pointsAwarded;
+
+      previousScore = teamScore.score;
+    }
+  }
+
+  console.log('Final team scores:', teamScores);
+
+  // Update all team scores in gaming_group_teams
+  for (const [teamId, totalScore] of Object.entries(teamScores)) {
+    await connection.query(
+      'UPDATE gaming_group_teams SET score = ? WHERE gaming_group_id = ? AND team_id = ?',
+      [totalScore, groupId, teamId]
+    );
+  }
+
+  return teamScores;
+}
+
 // Save/update game score for a team
 app.post('/games/:id/scores', authenticateToken, async (req, res) => {
+  const connection = await pool.getConnection();
+
   try {
     const { id } = req.params;
     const { teamId, score } = req.body;
@@ -931,8 +1076,11 @@ app.post('/games/:id/scores', authenticateToken, async (req, res) => {
       return res.status(400).json({ message: 'Team ID and score are required' });
     }
 
-    // Get game to validate score range
-    const [games] = await pool.query('SELECT minimum_point, maximum_point FROM games WHERE id = ?', [id]);
+    // Get game to validate score range and get gaming group
+    const [games] = await connection.query(
+      'SELECT minimum_point, maximum_point, gaming_group_id FROM games WHERE id = ?',
+      [id]
+    );
     if (games.length === 0) {
       return res.status(404).json({ message: 'Game not found' });
     }
@@ -944,18 +1092,28 @@ app.post('/games/:id/scores', authenticateToken, async (req, res) => {
       });
     }
 
+    await connection.beginTransaction();
+
     // Insert or update score
-    await pool.query(
+    await connection.query(
       `INSERT INTO game_scores (game_id, team_id, score)
        VALUES (?, ?, ?)
        ON DUPLICATE KEY UPDATE score = ?`,
       [id, teamId, score, score]
     );
 
+    // Automatically recalculate group scores
+    await calculateGroupScores(connection, game.gaming_group_id);
+
+    await connection.commit();
+
     res.json({ message: 'Score saved successfully', gameId: parseInt(id), teamId, score });
   } catch (error) {
+    await connection.rollback();
     console.error('Error saving game score:', error);
     res.status(500).json({ message: 'Failed to save game score' });
+  } finally {
+    connection.release();
   }
 });
 
@@ -1183,6 +1341,36 @@ app.delete('/gaming-groups/:groupId/teams/:teamId', authenticateToken, async (re
   } catch (error) {
     console.error('Error removing team from group:', error);
     res.status(500).json({ message: 'Failed to remove team from gaming group' });
+  }
+});
+
+// Calculate and update team scores for a gaming group based on game placements
+app.post('/gaming-groups/:groupId/calculate-scores', authenticateToken, async (req, res) => {
+  const connection = await pool.getConnection();
+
+  try {
+    if (req.user.role !== 'administrator') {
+      return res.status(403).json({ message: 'Only administrators can calculate scores' });
+    }
+
+    const { groupId } = req.params;
+
+    await connection.beginTransaction();
+
+    const teamScores = await calculateGroupScores(connection, groupId);
+
+    await connection.commit();
+
+    res.json({
+      message: 'Team scores calculated successfully',
+      teamScores
+    });
+  } catch (error) {
+    await connection.rollback();
+    console.error('Error calculating team scores:', error);
+    res.status(500).json({ message: 'Failed to calculate team scores' });
+  } finally {
+    connection.release();
   }
 });
 

@@ -3,6 +3,11 @@
     <base-dialog :show="!!error" title="An error occurred!" @close="handleError">
       <p>{{ error }}</p>
     </base-dialog>
+    <transition name="toast">
+      <div v-if="toastMessage" class="toast-message">
+        {{ toastMessage }}
+      </div>
+    </transition>
     <base-dialog :show="showAddTeamDialog" title="Add Team to Group" @close="closeAddTeamDialog">
       <div class="add-team-dialog">
         <div class="form-control">
@@ -58,6 +63,7 @@
           <div v-if="activeTab === 'teams'" class="teams-tab">
             <div class="action-buttons">
               <base-button v-if="isAdmin" @click="showAddTeamDialog = true">Add Team to Group</base-button>
+              <base-button v-if="isAdmin" mode="outline" @click="calculateScores">Calculate Scores</base-button>
             </div>
             <div v-if="groupTeams.length > 0">
               <ul class="teams-list">
@@ -68,7 +74,7 @@
                   </div>
                   <div class="team-score">
                     <span class="score-label">Score:</span>
-                    <span class="score-value">{{ team.score }}</span>
+                    <span class="score-value">{{ team.score || 0 }}</span>
                   </div>
                   <div class="team-actions" v-if="isAdmin">
                     <base-button mode="flat" @click="removeTeamFromGroup(team.id)">Remove</base-button>
@@ -126,6 +132,7 @@ export default {
     return {
       isLoading: false,
       error: null,
+      toastMessage: null,
       activeTab: 'games',
       groupTeams: [],
       dragIndex: null,
@@ -175,6 +182,10 @@ export default {
   },
   async created() {
     await this.loadData();
+    // Automatically calculate scores when entering the page
+    if (this.isAdmin) {
+      await this.calculateScoresQuietly();
+    }
   },
   methods: {
     async loadData() {
@@ -239,6 +250,45 @@ export default {
         this.error = error.message || 'Failed to remove team from group';
       }
     },
+    async calculateScores() {
+      try {
+        const response = await fetch(`http://localhost:3000/gaming-groups/${this.id}/calculate-scores`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.$store.getters['auth/token']}`
+          }
+        });
+
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.message || 'Failed to calculate scores');
+        }
+
+        await this.loadGroupTeams();
+        this.showToast('Team scores calculated successfully');
+      } catch (error) {
+        this.error = error.message || 'Failed to calculate team scores';
+      }
+    },
+    async calculateScoresQuietly() {
+      try {
+        const response = await fetch(`http://localhost:3000/gaming-groups/${this.id}/calculate-scores`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.$store.getters['auth/token']}`
+          }
+        });
+
+        if (response.ok) {
+          await this.loadGroupTeams();
+        }
+      } catch (error) {
+        // Silently fail for automatic background calculation
+        console.error('Background score calculation failed:', error);
+      }
+    },
     closeAddTeamDialog() {
       this.showAddTeamDialog = false;
       this.selectedTeamId = '';
@@ -292,6 +342,12 @@ export default {
     },
     handleError() {
       this.error = null;
+    },
+    showToast(message) {
+      this.toastMessage = message;
+      setTimeout(() => {
+        this.toastMessage = null;
+      }, 3000);
     }
   }
 };
@@ -512,5 +568,33 @@ export default {
   outline: none;
   border-color: #3d008d;
   background-color: #f0e6fd;
+}
+
+.toast-message {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  background-color: #3d008d;
+  color: white;
+  padding: 1rem 1.5rem;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+  font-weight: 500;
+}
+
+.toast-enter-active,
+.toast-leave-active {
+  transition: all 0.3s ease;
+}
+
+.toast-enter-from {
+  opacity: 0;
+  transform: translateY(1rem);
+}
+
+.toast-leave-to {
+  opacity: 0;
+  transform: translateY(-1rem);
 }
 </style>

@@ -17,6 +17,7 @@ import TeamsList from './pages/teams/TeamsList.vue';
 import TeamForm from './pages/teams/TeamForm.vue';
 import DashboardHome from './pages/dashboard/DashboardHome.vue';
 import LiveGame from './pages/dashboard/LiveGame.vue';
+import GamingGroupsDashboard from './pages/dashboard/GamingGroupsDashboard.vue';
 import NotFound from './pages/NotFound.vue';
 
 
@@ -25,6 +26,7 @@ const router = createRouter({
   routes: [
     { path: '/', redirect: '/dashboard' },
     { path: '/dashboard', component: DashboardHome },
+    { path: '/dashboard/gaming-groups', component: GamingGroupsDashboard },
     { path: '/dashboard/live/:id', component: LiveGame, props: true },
     /* { path: '/coaches', component: CoachesList },
     {
