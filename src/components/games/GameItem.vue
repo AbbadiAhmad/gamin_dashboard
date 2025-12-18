@@ -10,9 +10,9 @@
       <base-badge :type="gamingGroupName" :title="gamingGroupName"></base-badge>
     </div>
     <div class="actions">
-      <base-button mode="outline" link :to="editLink">Edit</base-button>
-      <base-button link :to="viewLink">View Details</base-button>
-      <base-button mode="flat" @click="deleteGame">Delete</base-button>
+      <base-button link :to="viewLink">Evaluate</base-button>
+      <base-button v-if="isAdmin" mode="outline" link :to="editLink">Edit</base-button>
+      <base-button v-if="isAdmin" mode="flat" @click="deleteGame">Delete</base-button>
     </div>
   </li>
 </template>
@@ -38,6 +38,9 @@ export default {
     }
   },
   computed: {
+    isAdmin() {
+      return this.$store.getters['auth/userRole'] === 'administrator';
+    },
     editLink() {
       return '/games/' + this.id + '/edit';
     },

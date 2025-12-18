@@ -125,3 +125,20 @@ CREATE TABLE IF NOT EXISTS gaming_group_teams (
 -- Create indexes
 CREATE INDEX idx_gaming_group_teams_group_id ON gaming_group_teams(gaming_group_id);
 CREATE INDEX idx_gaming_group_teams_team_id ON gaming_group_teams(team_id);
+
+-- Create game_scores table to track team scores for each game
+CREATE TABLE IF NOT EXISTS game_scores (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    game_id INT NOT NULL,
+    team_id INT NOT NULL,
+    score INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE,
+    FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_game_team (game_id, team_id)
+);
+
+-- Create indexes for game_scores
+CREATE INDEX idx_game_scores_game_id ON game_scores(game_id);
+CREATE INDEX idx_game_scores_team_id ON game_scores(team_id);

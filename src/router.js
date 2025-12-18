@@ -1,10 +1,10 @@
 import { createRouter, createWebHistory } from 'vue-router';
 
-import CoachDetail from './pages/coaches/CoachDetail.vue';
-import CoachesList from './pages/coaches/CoachesList.vue';
-import CoachRegistation from './pages/coaches/CoachRegistration.vue';
-import ContactCoach from './pages/requests/ContactCoach.vue';
-import RequestsReceived from './pages/requests/RequestsReceived.vue';
+// import CoachDetail from './pages/coaches/CoachDetail.vue';
+// import CoachesList from './pages/coaches/CoachesList.vue';
+// import CoachRegistation from './pages/coaches/CoachRegistration.vue';
+// import ContactCoach from './pages/requests/ContactCoach.vue';
+// import RequestsReceived from './pages/requests/RequestsReceived.vue';
 import UserAuth from './pages/auth/UserAuth.vue';
 import UserSetup from './pages/auth/UserSetup.vue';
 import GamingGroupsList from './pages/gaming-groups/GamingGroupsList.vue';
@@ -12,15 +12,21 @@ import GamingGroupDetail from './pages/gaming-groups/GamingGroupDetail.vue';
 import GamingGroupForm from './pages/gaming-groups/GamingGroupForm.vue';
 import GamesList from './pages/games/GamesList.vue';
 import GameForm from './pages/games/GameForm.vue';
+import GameEvaluation from './pages/games/GameEvaluation.vue';
 import TeamsList from './pages/teams/TeamsList.vue';
 import TeamForm from './pages/teams/TeamForm.vue';
+import DashboardHome from './pages/dashboard/DashboardHome.vue';
+import LiveGame from './pages/dashboard/LiveGame.vue';
 import NotFound from './pages/NotFound.vue';
+
 
 const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: '/', redirect: '/coaches' },
-    { path: '/coaches', component: CoachesList },
+    { path: '/', redirect: '/dashboard' },
+    { path: '/dashboard', component: DashboardHome },
+    { path: '/dashboard/live/:id', component: LiveGame, props: true },
+    /* { path: '/coaches', component: CoachesList },
     {
       path: '/coaches/:id',
       component: CoachDetail,
@@ -30,7 +36,7 @@ const router = createRouter({
       ]
     },
     { path: '/register', component: CoachRegistation },
-    { path: '/requests', component: RequestsReceived },
+    { path: '/requests', component: RequestsReceived }, */
     { path: '/auth', component: UserAuth },
     { path: '/setup', component: UserSetup },
     { path: '/gaming-groups', component: GamingGroupsList },
@@ -39,6 +45,7 @@ const router = createRouter({
     { path: '/gaming-groups/:id/edit', component: GamingGroupForm },
     { path: '/games', component: GamesList },
     { path: '/games/new', component: GameForm },
+    { path: '/games/:id', component: GameEvaluation, props: true },
     { path: '/games/:id/edit', component: GameForm },
     { path: '/teams', component: TeamsList },
     { path: '/teams/new', component: TeamForm },

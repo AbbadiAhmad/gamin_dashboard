@@ -97,18 +97,16 @@ export default {
       this.errorMessage = null;
 
       try {
-        const payload = {
-          name: this.name.val,
-          email: this.email.val,
-          password: this.password.val
-        };
-
         const response = await fetch('http://localhost:3000/setup/complete', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify(payload)
+          body: JSON.stringify({
+            name: this.name.val,
+            email: this.email.val,
+            password: this.password.val
+          })
         });
 
         const data = await response.json();
@@ -133,8 +131,8 @@ export default {
         // Set auto-logout
         this.$store.dispatch('auth/setAutoLogout', expiresIn);
 
-        // Redirect to coaches page
-        this.$router.replace('/coaches');
+        // Redirect to home page
+        this.$router.replace('/');
       } catch (error) {
         this.errorMessage = error.message;
       } finally {

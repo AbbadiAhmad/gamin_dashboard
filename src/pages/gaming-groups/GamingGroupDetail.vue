@@ -92,7 +92,8 @@
                   :draggable="isAdmin"
                   @dragstart="onDragStart(index, $event)"
                   @dragend="onDragEnd"
-                  class="game-item"
+                  @click="goToGame(game.id)"
+                  class="game-item clickable"
                   :class="{ dragging: dragIndex === index }"
                 >
                   <div class="game-info">
@@ -103,7 +104,7 @@
                   <span class="game-status" :class="`status-${game.status}`">
                     {{ getStatusLabel(game.status) }}
                   </span>
-                  <div class="game-actions" v-if="isAdmin">
+                  <div class="game-actions" v-if="isAdmin" @click.stop>
                     <base-button mode="outline" link :to="`/games/${game.id}/edit`">Edit</base-button>
                   </div>
                 </li>
@@ -125,7 +126,7 @@ export default {
     return {
       isLoading: false,
       error: null,
-      activeTab: 'info',
+      activeTab: 'games',
       groupTeams: [],
       dragIndex: null,
       localGames: [],
@@ -249,6 +250,9 @@ export default {
         past: 'Past'
       };
       return labels[status] || status;
+    },
+    goToGame(gameId) {
+      this.$router.push(`/games/${gameId}`);
     },
     onDragStart(index, event) {
       this.dragIndex = index;
@@ -399,6 +403,10 @@ export default {
 .team-actions {
   display: flex;
   gap: 0.5rem;
+}
+
+.game-item.clickable {
+  cursor: pointer;
 }
 
 .game-item {

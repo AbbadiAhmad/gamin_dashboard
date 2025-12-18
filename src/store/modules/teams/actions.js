@@ -142,10 +142,13 @@ export default {
 
   async loadGroupTeams(context, payload) {
     const token = localStorage.getItem('token');
+    const headers = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const response = await fetch(`${API_URL}/gaming-groups/${payload.groupId}/teams`, {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
+      headers
     });
 
     const responseData = await response.json();

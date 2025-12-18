@@ -572,8 +572,8 @@ app.delete('/gaming-groups/:id', authenticateToken, async (req, res) => {
 
 // ==================== GAMES ENDPOINTS ====================
 
-// Get all games
-app.get('/games', authenticateToken, async (req, res) => {
+// Get all games (public access for dashboard)
+app.get('/games', async (req, res) => {
   try {
     const { gaming_group_id } = req.query;
 
@@ -630,8 +630,8 @@ app.get('/games', authenticateToken, async (req, res) => {
   }
 });
 
-// Get a specific game
-app.get('/games/:id', authenticateToken, async (req, res) => {
+// Get a specific game (public access for dashboard)
+app.get('/games/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -862,6 +862,103 @@ app.delete('/games/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// Update game status (admin only)
+app.put('/games/:id/status', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'administrator') {
+      return res.status(403).json({ message: 'Only administrators can update game status' });
+    }
+
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!status || !['coming', 'running', 'past'].includes(status)) {
+      return res.status(400).json({ message: 'Valid status is required (coming, running, past)' });
+    }
+
+    const [result] = await pool.query(
+      'UPDATE games SET status = ? WHERE id = ?',
+      [status, id]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: 'Game not found' });
+    }
+
+    res.json({ message: 'Game status updated successfully', status });
+  } catch (error) {
+    console.error('Error updating game status:', error);
+    res.status(500).json({ message: 'Failed to update game status' });
+  }
+});
+
+// Get game scores (public access for dashboard)
+app.get('/games/:id/scores', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const [scores] = await pool.query(`
+      SELECT gs.*, t.name as teamName
+      FROM game_scores gs
+      INNER JOIN teams t ON gs.team_id = t.id
+      WHERE gs.game_id = ?
+      ORDER BY gs.score DESC
+    `, [id]);
+
+    // Convert to camelCase
+    const formattedScores = scores.map(score => ({
+      id: score.id,
+      gameId: score.game_id,
+      teamId: score.team_id,
+      teamName: score.teamName,
+      score: score.score
+    }));
+
+    res.json(formattedScores);
+  } catch (error) {
+    console.error('Error fetching game scores:', error);
+    res.status(500).json({ message: 'Failed to fetch game scores' });
+  }
+});
+
+// Save/update game score for a team
+app.post('/games/:id/scores', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { teamId, score } = req.body;
+
+    if (!teamId || score === undefined) {
+      return res.status(400).json({ message: 'Team ID and score are required' });
+    }
+
+    // Get game to validate score range
+    const [games] = await pool.query('SELECT minimum_point, maximum_point FROM games WHERE id = ?', [id]);
+    if (games.length === 0) {
+      return res.status(404).json({ message: 'Game not found' });
+    }
+
+    const game = games[0];
+    if (score < game.minimum_point || score > game.maximum_point) {
+      return res.status(400).json({
+        message: `Score must be between ${game.minimum_point} and ${game.maximum_point}`
+      });
+    }
+
+    // Insert or update score
+    await pool.query(
+      `INSERT INTO game_scores (game_id, team_id, score)
+       VALUES (?, ?, ?)
+       ON DUPLICATE KEY UPDATE score = ?`,
+      [id, teamId, score, score]
+    );
+
+    res.json({ message: 'Score saved successfully', gameId: parseInt(id), teamId, score });
+  } catch (error) {
+    console.error('Error saving game score:', error);
+    res.status(500).json({ message: 'Failed to save game score' });
+  }
+});
+
 // Reorder games (admin only)
 app.put('/games/reorder', authenticateToken, async (req, res) => {
   const connection = await pool.getConnection();
@@ -1048,8 +1145,8 @@ app.post('/gaming-groups/:groupId/teams', authenticateToken, async (req, res) =>
   }
 });
 
-// Get teams in a gaming group
-app.get('/gaming-groups/:groupId/teams', authenticateToken, async (req, res) => {
+// Get teams in a gaming group (public access for dashboard)
+app.get('/gaming-groups/:groupId/teams', async (req, res) => {
   try {
     const { groupId } = req.params;
 

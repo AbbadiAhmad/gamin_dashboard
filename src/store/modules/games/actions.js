@@ -7,19 +7,19 @@ export default {
     }
 
     const token = context.rootGetters['auth/token'];
-    if (!token) {
-      throw new Error('Not authenticated');
-    }
 
     let url = `${API_URL}/games`;
     if (payload && payload.gamingGroupId) {
       url += `?gaming_group_id=${payload.gamingGroupId}`;
     }
 
+    const headers = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const response = await fetch(url, {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
+      headers
     });
 
     const data = await response.json();

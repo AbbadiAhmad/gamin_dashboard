@@ -2,15 +2,18 @@
   <header>
     <nav>
       <h1>
-        <router-link to="/">Find a Coach</router-link>
+        <router-link to="/">Gaming Dashboard</router-link>
       </h1>
       <ul>
         <li>
+          <router-link to="/dashboard">Dashboard</router-link>
+        </li>
+<!--         <li>
           <router-link to="/coaches">All Coaches</router-link>
         </li>
         <li>
           <router-link to="/requests">Requests</router-link>
-        </li>
+        </li> -->
         <li v-if="isLoggedIn">
           <router-link to="/gaming-groups">Gaming Groups</router-link>
         </li>

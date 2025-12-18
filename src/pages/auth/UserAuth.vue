@@ -83,7 +83,7 @@ export default {
         });
 
         // Redirect after successful authentication
-        this.$router.replace('/coaches');
+        this.$router.replace('/');
       } catch (error) {
         // Provide user-friendly error messages
         const errorMsg = error.message || '';
