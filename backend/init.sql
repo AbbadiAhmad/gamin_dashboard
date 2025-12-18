@@ -65,3 +65,37 @@ CREATE TABLE IF NOT EXISTS gaming_groups (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
+
+-- Create games table
+CREATE TABLE IF NOT EXISTS games (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    minimum_point INT NOT NULL DEFAULT 0,
+    maximum_point INT NOT NULL DEFAULT 100,
+    gaming_group_id INT NOT NULL,
+    show_in_dashboard BOOLEAN DEFAULT TRUE,
+    status ENUM('coming', 'running', 'past') NOT NULL DEFAULT 'coming',
+    display_order INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (gaming_group_id) REFERENCES gaming_groups(id) ON DELETE CASCADE
+);
+
+-- Create game_scoring table
+CREATE TABLE IF NOT EXISTS game_scoring (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    game_id INT NOT NULL,
+    place_name VARCHAR(100) NOT NULL,
+    place INT NOT NULL,
+    score INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_game_place (game_id, place)
+);
+
+-- Create indexes for better query performance
+CREATE INDEX idx_games_gaming_group_id ON games(gaming_group_id);
+CREATE INDEX idx_games_status ON games(status);
+CREATE INDEX idx_game_scoring_game_id ON game_scoring(game_id);

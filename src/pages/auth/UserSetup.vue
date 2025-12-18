@@ -14,6 +14,16 @@
           />
           <p v-if="!name.isValid">Please enter your name.</p>
         </div>
+        <div class="form-control" :class="{invalid: !email.isValid}">
+          <label for="email">Email</label>
+          <input
+            type="email"
+            id="email"
+            v-model.trim="email.val"
+            @blur="clearValidity('email')"
+          />
+          <p v-if="!email.isValid">Please enter a valid email.</p>
+        </div>
         <div class="form-control" :class="{invalid: !password.isValid}">
           <label for="password">Password</label>
           <input
@@ -40,6 +50,10 @@ export default {
         val: '',
         isValid: true,
       },
+      email: {
+        val: '',
+        isValid: true,
+      },
       password: {
         val: '',
         isValid: true,
@@ -62,6 +76,11 @@ export default {
         this.formIsValid = false;
       }
 
+      if (this.email.val === '' || !this.email.val.includes('@')) {
+        this.email.isValid = false;
+        this.formIsValid = false;
+      }
+
       if (this.password.val.length < 6) {
         this.password.isValid = false;
         this.formIsValid = false;
@@ -78,16 +97,18 @@ export default {
       this.errorMessage = null;
 
       try {
+        const payload = {
+          name: this.name.val,
+          email: this.email.val,
+          password: this.password.val
+        };
+
         const response = await fetch('http://localhost:3000/setup/complete', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({
-            name: this.name.val,
-            email: 'admin@local',
-            password: this.password.val
-          })
+          body: JSON.stringify(payload)
         });
 
         const data = await response.json();

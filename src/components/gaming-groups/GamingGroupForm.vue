@@ -41,15 +41,26 @@ export default {
   data() {
     return {
       name: {
-        val: this.groupData?.name || '',
+        val: '',
         isValid: true,
       },
       description: {
-        val: this.groupData?.description || '',
+        val: '',
         isValid: true,
       },
       formIsValid: true,
     };
+  },
+  watch: {
+    groupData: {
+      handler(newData) {
+        if (newData) {
+          this.name.val = newData.name || '';
+          this.description.val = newData.description || '';
+        }
+      },
+      immediate: true
+    }
   },
   methods: {
     clearValidity(input) {

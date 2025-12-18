@@ -64,6 +64,7 @@ export default {
   },
   created() {
     this.loadGroups();
+    this.loadGames();
   },
   methods: {
     async loadGroups(refresh = false) {
@@ -76,6 +77,13 @@ export default {
         this.error = error.message || 'Something went wrong!';
       }
       this.isLoading = false;
+    },
+    async loadGames() {
+      try {
+        await this.$store.dispatch('games/loadGames', { forceRefresh: true });
+      } catch (error) {
+        console.error('Failed to load games:', error);
+      }
     },
     handleError() {
       this.error = null;

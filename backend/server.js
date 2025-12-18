@@ -91,12 +91,12 @@ app.post('/setup/complete', async (req, res) => {
       return res.status(403).json({ message: 'Setup has already been completed' });
     }
 
-    const { username, password } = req.body;
+    const { name, email, password } = req.body;
 
     // Validate input
-    if (!username || !password) {
+    if (!name || !email || !password) {
       await connection.rollback();
-      return res.status(400).json({ message: 'Username and password are required' });
+      return res.status(400).json({ message: 'Name, email, and password are required' });
     }
 
     if (password.length < 6) {
@@ -109,8 +109,8 @@ app.post('/setup/complete', async (req, res) => {
 
     // Create admin user
     const [result] = await connection.query(
-      'INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)',
-      [username, passwordHash, 'administrator']
+      'INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)',
+      [name, email, passwordHash, 'administrator']
     );
 
     // Mark setup as complete
@@ -122,7 +122,7 @@ app.post('/setup/complete', async (req, res) => {
 
     // Generate JWT token
     const token = jwt.sign(
-      { userId: result.insertId, username, role: 'administrator' },
+      { userId: result.insertId, email, role: 'administrator' },
       JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN }
     );
@@ -132,7 +132,8 @@ app.post('/setup/complete', async (req, res) => {
       token,
       user: {
         id: result.insertId,
-        username,
+        name,
+        email,
         role: 'administrator'
       }
     });
@@ -209,17 +210,17 @@ app.post('/auth/register', async (req, res) => {
 // Login user
 app.post('/auth/login', async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const { email, password } = req.body;
 
     // Validate input
-    if (!username || !password) {
-      return res.status(400).json({ message: 'Username and password are required' });
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email and password are required' });
     }
 
     // Find user
-    const [users] = await pool.query('SELECT * FROM users WHERE username = ?', [username]);
+    const [users] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
     if (users.length === 0) {
-      return res.status(401).json({ message: 'Invalid username or password' });
+      return res.status(401).json({ message: 'Invalid email or password' });
     }
 
     const user = users[0];
@@ -227,12 +228,12 @@ app.post('/auth/login', async (req, res) => {
     // Verify password
     const isPasswordValid = await bcrypt.compare(password, user.password_hash);
     if (!isPasswordValid) {
-      return res.status(401).json({ message: 'Invalid username or password' });
+      return res.status(401).json({ message: 'Invalid email or password' });
     }
 
     // Generate JWT token (expires in 2 hours)
     const token = jwt.sign(
-      { userId: user.id, username: user.username, role: user.role },
+      { userId: user.id, email: user.email, role: user.role },
       JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN }
     );
@@ -242,7 +243,8 @@ app.post('/auth/login', async (req, res) => {
       token,
       user: {
         id: user.id,
-        username: user.username,
+        name: user.name,
+        email: user.email,
         role: user.role
       }
     });
@@ -565,6 +567,337 @@ app.delete('/gaming-groups/:id', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error deleting gaming group:', error);
     res.status(500).json({ message: 'Failed to delete gaming group' });
+  }
+});
+
+// ==================== GAMES ENDPOINTS ====================
+
+// Get all games
+app.get('/games', authenticateToken, async (req, res) => {
+  try {
+    const { gaming_group_id } = req.query;
+
+    let query = `
+      SELECT g.*, gg.name as gaming_group_name
+      FROM games g
+      LEFT JOIN gaming_groups gg ON g.gaming_group_id = gg.id
+    `;
+    const params = [];
+
+    if (gaming_group_id) {
+      query += ' WHERE g.gaming_group_id = ?';
+      params.push(gaming_group_id);
+    }
+
+    query += ' ORDER BY g.display_order ASC, g.created_at DESC';
+
+    const [games] = await pool.query(query, params);
+
+    // Get scoring for each game
+    const gamesWithScoring = await Promise.all(
+      games.map(async (game) => {
+        const [scoring] = await pool.query(
+          'SELECT id, place_name, place, score FROM game_scoring WHERE game_id = ? ORDER BY place ASC',
+          [game.id]
+        );
+        return {
+          id: game.id,
+          name: game.name,
+          description: game.description,
+          minimumPoint: game.minimum_point,
+          maximumPoint: game.maximum_point,
+          gamingGroupId: game.gaming_group_id,
+          gamingGroupName: game.gaming_group_name,
+          showInDashboard: Boolean(game.show_in_dashboard),
+          status: game.status,
+          displayOrder: game.display_order,
+          scoring: scoring.map(s => ({
+            id: s.id,
+            placeName: s.place_name,
+            place: s.place,
+            score: s.score
+          })),
+          createdAt: game.created_at,
+          updatedAt: game.updated_at
+        };
+      })
+    );
+
+    res.json(gamesWithScoring);
+  } catch (error) {
+    console.error('Error fetching games:', error);
+    res.status(500).json({ message: 'Failed to fetch games', error: error.message });
+  }
+});
+
+// Get a specific game
+app.get('/games/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const [games] = await pool.query(`
+      SELECT g.*, gg.name as gaming_group_name
+      FROM games g
+      LEFT JOIN gaming_groups gg ON g.gaming_group_id = gg.id
+      WHERE g.id = ?
+    `, [id]);
+
+    if (games.length === 0) {
+      return res.status(404).json({ message: 'Game not found' });
+    }
+
+    const game = games[0];
+
+    // Get scoring
+    const [scoring] = await pool.query(
+      'SELECT id, place_name, place, score FROM game_scoring WHERE game_id = ? ORDER BY place ASC',
+      [id]
+    );
+
+    res.json({
+      id: game.id,
+      name: game.name,
+      description: game.description,
+      minimumPoint: game.minimum_point,
+      maximumPoint: game.maximum_point,
+      gamingGroupId: game.gaming_group_id,
+      gamingGroupName: game.gaming_group_name,
+      showInDashboard: Boolean(game.show_in_dashboard),
+      status: game.status,
+      scoring: scoring.map(s => ({
+        id: s.id,
+        placeName: s.place_name,
+        place: s.place,
+        score: s.score
+      })),
+      createdAt: game.created_at,
+      updatedAt: game.updated_at
+    });
+  } catch (error) {
+    console.error('Error fetching game:', error);
+    res.status(500).json({ message: 'Failed to fetch game' });
+  }
+});
+
+// Create a new game (admin only)
+app.post('/games', authenticateToken, async (req, res) => {
+  const connection = await pool.getConnection();
+
+  try {
+    // Check if user is administrator
+    if (req.user.role !== 'administrator') {
+      return res.status(403).json({ message: 'Only administrators can create games' });
+    }
+
+    await connection.beginTransaction();
+
+    const { name, description, minimumPoint, maximumPoint, gamingGroupId, showInDashboard, status, scoring } = req.body;
+
+    // Validate input
+    if (!name || !gamingGroupId) {
+      await connection.rollback();
+      return res.status(400).json({ message: 'Name and gaming group are required' });
+    }
+
+    // Verify gaming group exists
+    const [groups] = await connection.query('SELECT id FROM gaming_groups WHERE id = ?', [gamingGroupId]);
+    if (groups.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({ message: 'Gaming group not found' });
+    }
+
+    // Get the max display_order for this gaming group
+    const [maxOrder] = await connection.query(
+      'SELECT COALESCE(MAX(display_order), -1) as max_order FROM games WHERE gaming_group_id = ?',
+      [gamingGroupId]
+    );
+    const displayOrder = maxOrder[0].max_order + 1;
+
+    // Insert game
+    const [result] = await connection.query(
+      `INSERT INTO games (name, description, minimum_point, maximum_point, gaming_group_id, show_in_dashboard, status, display_order)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [name, description || '', minimumPoint || 0, maximumPoint || 100, gamingGroupId, showInDashboard !== false, status || 'coming', displayOrder]
+    );
+
+    const gameId = result.insertId;
+
+    // Insert default scoring if not provided
+    const scoringData = scoring && scoring.length > 0 ? scoring : [
+      { placeName: '1st', place: 1, score: 5 },
+      { placeName: 'other', place: -1, score: 0 }
+    ];
+
+    for (const score of scoringData) {
+      await connection.query(
+        'INSERT INTO game_scoring (game_id, place_name, place, score) VALUES (?, ?, ?, ?)',
+        [gameId, score.placeName, score.place, score.score]
+      );
+    }
+
+    await connection.commit();
+
+    res.status(201).json({
+      id: gameId,
+      name,
+      description: description || '',
+      minimumPoint: minimumPoint || 0,
+      maximumPoint: maximumPoint || 100,
+      gamingGroupId,
+      showInDashboard: showInDashboard !== false,
+      status: status || 'coming',
+      scoring: scoringData
+    });
+  } catch (error) {
+    await connection.rollback();
+    console.error('Error creating game:', error);
+    res.status(500).json({ message: 'Failed to create game', error: error.message });
+  } finally {
+    connection.release();
+  }
+});
+
+// Update a game (admin only)
+app.put('/games/:id', authenticateToken, async (req, res) => {
+  const connection = await pool.getConnection();
+
+  try {
+    // Check if user is administrator
+    if (req.user.role !== 'administrator') {
+      return res.status(403).json({ message: 'Only administrators can update games' });
+    }
+
+    await connection.beginTransaction();
+
+    const { id } = req.params;
+    const { name, description, minimumPoint, maximumPoint, gamingGroupId, showInDashboard, status, scoring } = req.body;
+
+    // Validate input
+    if (!name || !gamingGroupId) {
+      await connection.rollback();
+      return res.status(400).json({ message: 'Name and gaming group are required' });
+    }
+
+    // Check if game exists
+    const [existingGame] = await connection.query('SELECT id FROM games WHERE id = ?', [id]);
+    if (existingGame.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({ message: 'Game not found' });
+    }
+
+    // Verify gaming group exists
+    const [groups] = await connection.query('SELECT id FROM gaming_groups WHERE id = ?', [gamingGroupId]);
+    if (groups.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({ message: 'Gaming group not found' });
+    }
+
+    // Update game
+    await connection.query(
+      `UPDATE games
+       SET name = ?, description = ?, minimum_point = ?, maximum_point = ?,
+           gaming_group_id = ?, show_in_dashboard = ?, status = ?
+       WHERE id = ?`,
+      [name, description || '', minimumPoint || 0, maximumPoint || 100, gamingGroupId, showInDashboard !== false, status || 'coming', id]
+    );
+
+    // Update scoring if provided
+    if (scoring && scoring.length > 0) {
+      // Delete existing scoring
+      await connection.query('DELETE FROM game_scoring WHERE game_id = ?', [id]);
+
+      // Insert new scoring
+      for (const score of scoring) {
+        await connection.query(
+          'INSERT INTO game_scoring (game_id, place_name, place, score) VALUES (?, ?, ?, ?)',
+          [id, score.placeName, score.place, score.score]
+        );
+      }
+    }
+
+    await connection.commit();
+
+    res.json({
+      id: parseInt(id),
+      name,
+      description: description || '',
+      minimumPoint: minimumPoint || 0,
+      maximumPoint: maximumPoint || 100,
+      gamingGroupId,
+      showInDashboard: showInDashboard !== false,
+      status: status || 'coming',
+      scoring: scoring || []
+    });
+  } catch (error) {
+    await connection.rollback();
+    console.error('Error updating game:', error);
+    res.status(500).json({ message: 'Failed to update game' });
+  } finally {
+    connection.release();
+  }
+});
+
+// Delete a game (admin only)
+app.delete('/games/:id', authenticateToken, async (req, res) => {
+  try {
+    // Check if user is administrator
+    if (req.user.role !== 'administrator') {
+      return res.status(403).json({ message: 'Only administrators can delete games' });
+    }
+
+    const { id } = req.params;
+
+    // Check if game exists
+    const [existingGame] = await pool.query('SELECT id FROM games WHERE id = ?', [id]);
+    if (existingGame.length === 0) {
+      return res.status(404).json({ message: 'Game not found' });
+    }
+
+    await pool.query('DELETE FROM games WHERE id = ?', [id]);
+
+    res.json({ message: 'Game deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting game:', error);
+    res.status(500).json({ message: 'Failed to delete game' });
+  }
+});
+
+// Reorder games (admin only)
+app.put('/games/reorder', authenticateToken, async (req, res) => {
+  const connection = await pool.getConnection();
+
+  try {
+    // Check if user is administrator
+    if (req.user.role !== 'administrator') {
+      return res.status(403).json({ message: 'Only administrators can reorder games' });
+    }
+
+    await connection.beginTransaction();
+
+    const { gameOrders } = req.body; // Array of {id, displayOrder}
+
+    if (!gameOrders || !Array.isArray(gameOrders)) {
+      await connection.rollback();
+      return res.status(400).json({ message: 'Game orders array is required' });
+    }
+
+    // Update display_order for each game
+    for (const gameOrder of gameOrders) {
+      await connection.query(
+        'UPDATE games SET display_order = ? WHERE id = ?',
+        [gameOrder.displayOrder, gameOrder.id]
+      );
+    }
+
+    await connection.commit();
+
+    res.json({ message: 'Games reordered successfully' });
+  } catch (error) {
+    await connection.rollback();
+    console.error('Error reordering games:', error);
+    res.status(500).json({ message: 'Failed to reorder games' });
+  } finally {
+    connection.release();
   }
 });
 
