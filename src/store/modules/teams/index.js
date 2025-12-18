@@ -6,7 +6,8 @@ export default {
   namespaced: true,
   state() {
     return {
-      requests: []
+      lastFetch: null,
+      teams: []
     };
   },
   mutations,

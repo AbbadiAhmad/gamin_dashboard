@@ -83,9 +83,20 @@ export default {
         });
 
         // Redirect after successful authentication
-        this.$router.replace('/coaches');
+        this.$router.replace('/');
       } catch (error) {
-        this.errorMessage = error.message || 'Authentication failed. Please try again.';
+        // Provide user-friendly error messages
+        const errorMsg = error.message || '';
+
+        if (errorMsg.includes('Invalid email or password')) {
+          this.errorMessage = 'Invalid email or password. Please check your credentials and try again.';
+        } else if (errorMsg.includes('required')) {
+          this.errorMessage = 'Email and password are required.';
+        } else if (errorMsg.includes('Failed to fetch')) {
+          this.errorMessage = 'Unable to connect to server. Please check your connection and try again.';
+        } else {
+          this.errorMessage = errorMsg || 'Authentication failed. Please try again.';
+        }
       } finally {
         this.isLoading = false;
       }

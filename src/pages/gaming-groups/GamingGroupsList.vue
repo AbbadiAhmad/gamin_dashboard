@@ -26,8 +26,10 @@
             :id="group.id"
             :name="group.name"
             :description="group.description"
+            :show-in-dashboard="group.showInDashboard"
             @edit="editGroup"
             @delete="showDeleteDialog"
+            @toggle-dashboard="handleToggleDashboard"
           ></gaming-group-item>
         </ul>
         <h3 v-else>No gaming groups found.</h3>
@@ -106,6 +108,10 @@ export default {
         this.error = error.message || 'Failed to delete gaming group!';
       }
       this.isLoading = false;
+    },
+    handleToggleDashboard() {
+      // Refresh the list to show updated toggle state
+      this.loadGroups(true);
     }
   },
 };

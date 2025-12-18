@@ -14,6 +14,16 @@
           />
           <p v-if="!name.isValid">Please enter your name.</p>
         </div>
+        <div class="form-control" :class="{invalid: !email.isValid}">
+          <label for="email">Email</label>
+          <input
+            type="email"
+            id="email"
+            v-model.trim="email.val"
+            @blur="clearValidity('email')"
+          />
+          <p v-if="!email.isValid">Please enter a valid email.</p>
+        </div>
         <div class="form-control" :class="{invalid: !password.isValid}">
           <label for="password">Password</label>
           <input
@@ -40,6 +50,10 @@ export default {
         val: '',
         isValid: true,
       },
+      email: {
+        val: '',
+        isValid: true,
+      },
       password: {
         val: '',
         isValid: true,
@@ -59,6 +73,11 @@ export default {
 
       if (this.name.val === '') {
         this.name.isValid = false;
+        this.formIsValid = false;
+      }
+
+      if (this.email.val === '' || !this.email.val.includes('@')) {
+        this.email.isValid = false;
         this.formIsValid = false;
       }
 
@@ -85,7 +104,7 @@ export default {
           },
           body: JSON.stringify({
             name: this.name.val,
-            email: 'admin@local',
+            email: this.email.val,
             password: this.password.val
           })
         });
@@ -112,8 +131,8 @@ export default {
         // Set auto-logout
         this.$store.dispatch('auth/setAutoLogout', expiresIn);
 
-        // Redirect to coaches page
-        this.$router.replace('/coaches');
+        // Redirect to home page
+        this.$router.replace('/');
       } catch (error) {
         this.errorMessage = error.message;
       } finally {

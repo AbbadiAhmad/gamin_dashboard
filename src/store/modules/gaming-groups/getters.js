@@ -5,6 +5,9 @@ export default {
   hasGroups(state) {
     return state.groups && state.groups.length > 0;
   },
+  getGroupById: (state) => (groupId) => {
+    return state.groups.find(group => group.id === groupId);
+  },
   shouldUpdate(state) {
     const lastFetch = state.lastFetch;
     if (!lastFetch) {

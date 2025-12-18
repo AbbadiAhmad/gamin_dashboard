@@ -1,36 +1,44 @@
 import { createRouter, createWebHistory } from 'vue-router';
 
-import CoachDetail from './pages/coaches/CoachDetail.vue';
-import CoachesList from './pages/coaches/CoachesList.vue';
-import CoachRegistation from './pages/coaches/CoachRegistration.vue';
-import ContactCoach from './pages/requests/ContactCoach.vue';
-import RequestsReceived from './pages/requests/RequestsReceived.vue';
+// Eager load: Login and Dashboard pages (for fast initial load)
 import UserAuth from './pages/auth/UserAuth.vue';
-import UserSetup from './pages/auth/UserSetup.vue';
-import GamingGroupsList from './pages/gaming-groups/GamingGroupsList.vue';
-import GamingGroupForm from './pages/gaming-groups/GamingGroupForm.vue';
-import NotFound from './pages/NotFound.vue';
+import GameDashboard from './pages/dashboard/GameDashboard.vue';
+import GamingGroupsDashboard from './pages/dashboard/GamingGroupsDashboard.vue';
+import LiveGame from './pages/dashboard/LiveGame.vue';
+
+// Lazy load: All other pages
+const UserSetup = () => import('./pages/auth/UserSetup.vue');
+const GamingGroupsList = () => import('./pages/gaming-groups/GamingGroupsList.vue');
+const GamingGroupDetail = () => import('./pages/gaming-groups/GamingGroupDetail.vue');
+const GamingGroupForm = () => import('./pages/gaming-groups/GamingGroupForm.vue');
+const GamesList = () => import('./pages/games/GamesList.vue');
+const GameForm = () => import('./pages/games/GameForm.vue');
+const GameEvaluation = () => import('./pages/games/GameEvaluation.vue');
+const TeamsList = () => import('./pages/teams/TeamsList.vue');
+const TeamForm = () => import('./pages/teams/TeamForm.vue');
+const NotFound = () => import('./pages/NotFound.vue');
+
 
 const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: '/', redirect: '/coaches' },
-    { path: '/coaches', component: CoachesList },
-    {
-      path: '/coaches/:id',
-      component: CoachDetail,
-      props: true,
-      children: [
-        { path: 'contact', component: ContactCoach } // /coaches/c1/contact
-      ]
-    },
-    { path: '/register', component: CoachRegistation },
-    { path: '/requests', component: RequestsReceived },
+    { path: '/', redirect: '/dashboard/gaming-groups' },
+    { path: '/dashboard', component: GameDashboard },
+    { path: '/dashboard/gaming-groups', component: GamingGroupsDashboard },
+    { path: '/dashboard/live/:id', component: LiveGame, props: true },
     { path: '/auth', component: UserAuth },
     { path: '/setup', component: UserSetup },
     { path: '/gaming-groups', component: GamingGroupsList },
     { path: '/gaming-groups/new', component: GamingGroupForm },
+    { path: '/gaming-groups/:id', component: GamingGroupDetail, props: true },
     { path: '/gaming-groups/:id/edit', component: GamingGroupForm },
+    { path: '/games', component: GamesList },
+    { path: '/games/new', component: GameForm },
+    { path: '/games/:id', component: GameEvaluation, props: true },
+    { path: '/games/:id/edit', component: GameForm },
+    { path: '/teams', component: TeamsList },
+    { path: '/teams/new', component: TeamForm },
+    { path: '/teams/:id/edit', component: TeamForm },
     { path: '/:notFound(.*)', component: NotFound }
   ]
 });

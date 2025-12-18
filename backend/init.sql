@@ -1,3 +1,9 @@
+-- Fix authentication method for MariaDB client compatibility
+-- The MySQL Docker container auto-creates the user with caching_sha2_password
+-- We need to change it to mysql_native_password for MariaDB client compatibility
+ALTER USER 'coaches_user'@'%' IDENTIFIED WITH mysql_native_password BY 'coaches_pass';
+FLUSH PRIVILEGES;
+
 -- Create coaches table
 CREATE TABLE IF NOT EXISTS coaches (
     id VARCHAR(255) PRIMARY KEY,
@@ -62,6 +68,84 @@ CREATE TABLE IF NOT EXISTS gaming_groups (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     description TEXT,
+    show_in_dashboard BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
+
+-- Create games table
+CREATE TABLE IF NOT EXISTS games (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    minimum_point INT NOT NULL DEFAULT 0,
+    maximum_point INT NOT NULL DEFAULT 100,
+    gaming_group_id INT NOT NULL,
+    show_in_dashboard BOOLEAN DEFAULT TRUE,
+    status ENUM('coming', 'running', 'past') NOT NULL DEFAULT 'coming',
+    display_order INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (gaming_group_id) REFERENCES gaming_groups(id) ON DELETE CASCADE
+);
+
+-- Create game_scoring table
+CREATE TABLE IF NOT EXISTS game_scoring (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    game_id INT NOT NULL,
+    place_name VARCHAR(100) NOT NULL,
+    place INT NOT NULL,
+    score INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_game_place (game_id, place)
+);
+
+-- Create indexes for better query performance
+CREATE INDEX idx_games_gaming_group_id ON games(gaming_group_id);
+CREATE INDEX idx_games_status ON games(status);
+CREATE INDEX idx_game_scoring_game_id ON game_scoring(game_id);
+
+-- Create teams table
+CREATE TABLE IF NOT EXISTS teams (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Create gaming_group_teams junction table (many-to-many)
+CREATE TABLE IF NOT EXISTS gaming_group_teams (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    gaming_group_id INT NOT NULL,
+    team_id INT NOT NULL,
+    score INT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (gaming_group_id) REFERENCES gaming_groups(id) ON DELETE CASCADE,
+    FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_group_team (gaming_group_id, team_id)
+);
+
+-- Create indexes
+CREATE INDEX idx_gaming_group_teams_group_id ON gaming_group_teams(gaming_group_id);
+CREATE INDEX idx_gaming_group_teams_team_id ON gaming_group_teams(team_id);
+
+-- Create game_scores table to track team scores for each game
+CREATE TABLE IF NOT EXISTS game_scores (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    game_id INT NOT NULL,
+    team_id INT NOT NULL,
+    score INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE,
+    FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_game_team (game_id, team_id)
+);
+
+-- Create indexes for game_scores
+CREATE INDEX idx_game_scores_game_id ON game_scores(game_id);
+CREATE INDEX idx_game_scores_team_id ON game_scores(team_id);

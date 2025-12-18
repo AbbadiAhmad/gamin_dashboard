@@ -18,7 +18,8 @@ export default {
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.message || 'Failed to authenticate');
+      const errorMessage = data.message || 'Failed to authenticate';
+      throw new Error(errorMessage);
     }
 
     // Calculate expiration time (2 hours from now)
