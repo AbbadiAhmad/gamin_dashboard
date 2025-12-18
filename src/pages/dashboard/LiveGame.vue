@@ -355,15 +355,15 @@ export default {
 .fullscreen-controls {
   position: fixed;
   top: 1rem;
-  left: 1rem;
+  right: 1rem;
   z-index: 10000;
 }
 
 .fullscreen-btn {
-  background: rgba(200, 181, 225, 0.9);
+  background: rgba(200, 181, 225, 0.5);
   color: white;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  padding: 0.75rem 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 0.5rem 0.5rem;
   border-radius: 8px;
   cursor: pointer;
   font-size: 1rem;

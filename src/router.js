@@ -1,19 +1,22 @@
 import { createRouter, createWebHistory } from 'vue-router';
 
+// Eager load: Login and Dashboard pages (for fast initial load)
 import UserAuth from './pages/auth/UserAuth.vue';
-import UserSetup from './pages/auth/UserSetup.vue';
-import GamingGroupsList from './pages/gaming-groups/GamingGroupsList.vue';
-import GamingGroupDetail from './pages/gaming-groups/GamingGroupDetail.vue';
-import GamingGroupForm from './pages/gaming-groups/GamingGroupForm.vue';
-import GamesList from './pages/games/GamesList.vue';
-import GameForm from './pages/games/GameForm.vue';
-import GameEvaluation from './pages/games/GameEvaluation.vue';
-import TeamsList from './pages/teams/TeamsList.vue';
-import TeamForm from './pages/teams/TeamForm.vue';
-import GameDashboard from './pages/dashboard/DashboardHome.vue';
-import LiveGame from './pages/dashboard/LiveGame.vue';
+import GameDashboard from './pages/dashboard/GameDashboard.vue';
 import GamingGroupsDashboard from './pages/dashboard/GamingGroupsDashboard.vue';
-import NotFound from './pages/NotFound.vue';
+import LiveGame from './pages/dashboard/LiveGame.vue';
+
+// Lazy load: All other pages
+const UserSetup = () => import('./pages/auth/UserSetup.vue');
+const GamingGroupsList = () => import('./pages/gaming-groups/GamingGroupsList.vue');
+const GamingGroupDetail = () => import('./pages/gaming-groups/GamingGroupDetail.vue');
+const GamingGroupForm = () => import('./pages/gaming-groups/GamingGroupForm.vue');
+const GamesList = () => import('./pages/games/GamesList.vue');
+const GameForm = () => import('./pages/games/GameForm.vue');
+const GameEvaluation = () => import('./pages/games/GameEvaluation.vue');
+const TeamsList = () => import('./pages/teams/TeamsList.vue');
+const TeamForm = () => import('./pages/teams/TeamForm.vue');
+const NotFound = () => import('./pages/NotFound.vue');
 
 
 const router = createRouter({

@@ -32,6 +32,20 @@
           <li v-if="isLoggedIn">
             <router-link to="/teams">Teams</router-link>
           </li>
+          <li v-if="isAdmin" class="dropdown">
+            <button @click="toggleDatabaseDropdown" class="dropdown-btn">
+              Database
+              <span class="arrow">{{ showDatabaseDropdown ? '▲' : '▼' }}</span>
+            </button>
+            <ul v-if="showDatabaseDropdown" class="dropdown-menu">
+              <li>
+                <button @click="exportDatabase" class="dropdown-menu-btn">Export Backup</button>
+              </li>
+              <li>
+                <button @click="triggerImport" class="dropdown-menu-btn">Import Backup</button>
+              </li>
+            </ul>
+          </li>
           <li v-if="!isLoggedIn">
             <router-link to="/auth">Login</router-link>
           </li>
@@ -48,6 +62,18 @@
         <span v-else>▼</span>
       </button>
     </header>
+    <input
+      ref="fileInput"
+      type="file"
+      accept=".zip"
+      @change="handleFileUpload"
+      style="display: none"
+    />
+    <transition name="fade">
+      <div v-if="notification.show" :class="['notification', notification.type]">
+        {{ notification.message }}
+      </div>
+    </transition>
   </div>
 </template>
 
@@ -56,18 +82,36 @@ export default {
   data() {
     return {
       isHeaderVisible: true,
-      showDropdown: false
+      showDropdown: false,
+      showDatabaseDropdown: false,
+      notification: {
+        show: false,
+        message: '',
+        type: 'success' // 'success' or 'error'
+      }
     };
   },
   computed: {
     isLoggedIn() {
       return this.$store.getters['auth/isAuthenticated'];
     },
+    isAdmin() {
+      return this.$store.getters['auth/isAdministrator'];
+    },
     userName() {
       return this.$store.getters['auth/userName'];
     }
   },
   methods: {
+    showNotification(message, type = 'success') {
+      this.notification.message = message;
+      this.notification.type = type;
+      this.notification.show = true;
+
+      setTimeout(() => {
+        this.notification.show = false;
+      }, 3000);
+    },
     logout() {
       this.$store.dispatch('auth/logout');
       this.$router.replace('/auth');
@@ -80,6 +124,107 @@ export default {
     },
     closeDropdown() {
       this.showDropdown = false;
+    },
+    toggleDatabaseDropdown() {
+      this.showDatabaseDropdown = !this.showDatabaseDropdown;
+    },
+    closeDatabaseDropdown() {
+      this.showDatabaseDropdown = false;
+    },
+    async exportDatabase() {
+      this.closeDatabaseDropdown();
+
+      try {
+        const token = this.$store.getters['auth/token'];
+
+        const response = await fetch('http://localhost:3000/api/database/export', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.message || 'Failed to export database');
+        }
+
+        // Download the file
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+
+        // Get filename from Content-Disposition header or use default
+        const contentDisposition = response.headers.get('Content-Disposition');
+        let filename = 'gaming_dashboard_backup.zip';
+        if (contentDisposition) {
+          const filenameMatch = contentDisposition.match(/filename="?(.+)"?/);
+          if (filenameMatch) {
+            filename = filenameMatch[1];
+          }
+        }
+
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+
+        this.showNotification('Database exported successfully!');
+      } catch (error) {
+        console.error('Export error:', error);
+        this.showNotification('Failed to export database: ' + error.message, 'error');
+      }
+    },
+    triggerImport() {
+      this.closeDatabaseDropdown();
+      this.$refs.fileInput.click();
+    },
+    async handleFileUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      if (!file.name.endsWith('.zip')) {
+        this.showNotification('Please select a .zip file', 'error');
+        this.$refs.fileInput.value = '';
+        return;
+      }
+
+      if (!confirm('WARNING: Importing a database backup will replace ALL current data. This action cannot be undone. Are you sure you want to continue?')) {
+        this.$refs.fileInput.value = '';
+        return;
+      }
+
+      try {
+        const token = this.$store.getters['auth/token'];
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await fetch('http://localhost:3000/api/database/import', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          },
+          body: formData
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.message || 'Failed to import database');
+        }
+
+        this.showNotification('Database imported successfully! Reloading page...');
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+      } catch (error) {
+        console.error('Import error:', error);
+        this.showNotification('Failed to import database: ' + error.message, 'error');
+      } finally {
+        this.$refs.fileInput.value = '';
+      }
     }
   }
 };
@@ -209,6 +354,23 @@ li {
   color: #3d008d;
 }
 
+.dropdown-menu-btn {
+  width: 100%;
+  text-align: left;
+  background-color: transparent;
+  border: none;
+  color: #f391e3;
+  padding: 0.75rem 1.5rem;
+  cursor: pointer;
+  font: inherit;
+  white-space: nowrap;
+}
+
+.dropdown-menu-btn:hover {
+  background-color: #f391e3;
+  color: #3d008d;
+}
+
 .user-name {
   color: white;
   font-weight: bold;
@@ -253,5 +415,44 @@ li {
 
 .header-hidden .toggle-header-btn {
   bottom: 0.5rem;
+}
+
+.notification {
+  position: fixed;
+  top: 6rem;
+  right: 2rem;
+  padding: 1rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 500;
+  z-index: 9999;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  min-width: 250px;
+  max-width: 400px;
+}
+
+.notification.success {
+  background-color: #4caf50;
+  color: white;
+  border: 2px solid #45a049;
+}
+
+.notification.error {
+  background-color: #f44336;
+  color: white;
+  border: 2px solid #da190b;
+}
+
+.fade-enter-active, .fade-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.fade-enter-from {
+  opacity: 0;
+  transform: translateY(-20px);
+}
+
+.fade-leave-to {
+  opacity: 0;
+  transform: translateY(-20px);
 }
 </style>

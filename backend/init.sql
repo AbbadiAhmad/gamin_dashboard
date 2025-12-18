@@ -1,3 +1,9 @@
+-- Fix authentication method for MariaDB client compatibility
+-- The MySQL Docker container auto-creates the user with caching_sha2_password
+-- We need to change it to mysql_native_password for MariaDB client compatibility
+ALTER USER 'coaches_user'@'%' IDENTIFIED WITH mysql_native_password BY 'coaches_pass';
+FLUSH PRIVILEGES;
+
 -- Create coaches table
 CREATE TABLE IF NOT EXISTS coaches (
     id VARCHAR(255) PRIMARY KEY,

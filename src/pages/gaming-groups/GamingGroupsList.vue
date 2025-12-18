@@ -109,7 +109,7 @@ export default {
       }
       this.isLoading = false;
     },
-    handleToggleDashboard(id, newValue) {
+    handleToggleDashboard() {
       // Refresh the list to show updated toggle state
       this.loadGroups(true);
     }

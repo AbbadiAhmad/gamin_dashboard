@@ -4,6 +4,11 @@ const bodyParser = require('body-parser');
 const mysql = require('mysql2/promise');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const archiver = require('archiver');
+const multer = require('multer');
+const { exec } = require('child_process');
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -53,6 +58,14 @@ const authenticateToken = (req, res, next) => {
     req.user = user;
     next();
   });
+};
+
+// Middleware to require administrator role
+const requireAdmin = (req, res, next) => {
+  if (req.user.role !== 'administrator') {
+    return res.status(403).json({ message: 'Administrator access required' });
+  }
+  next();
 };
 
 // ==================== SETUP ENDPOINTS ====================
@@ -1377,6 +1390,200 @@ app.post('/gaming-groups/:groupId/calculate-scores', authenticateToken, async (r
 // Start server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+});
+
+// ==================== DATABASE BACKUP & RESTORE ====================
+
+// Configure multer for file upload
+const upload = multer({ dest: 'uploads/' });
+
+// Cleanup function for temporary files
+const cleanupTempFiles = () => {
+  const tempDir = path.join(__dirname, 'temp');
+  const uploadsDir = path.join(__dirname, 'uploads');
+
+  // Clean temp directory
+  if (fs.existsSync(tempDir)) {
+    fs.readdir(tempDir, (err, files) => {
+      if (err) {
+        console.error('Error reading temp directory:', err);
+        return;
+      }
+
+      files.forEach(file => {
+        const filePath = path.join(tempDir, file);
+        fs.unlink(filePath, (err) => {
+          if (err) console.error(`Failed to delete temp file ${file}:`, err);
+          else console.log(`Cleaned up temp file: ${file}`);
+        });
+      });
+    });
+  }
+
+  // Clean uploads directory
+  if (fs.existsSync(uploadsDir)) {
+    fs.readdir(uploadsDir, (err, files) => {
+      if (err) {
+        console.error('Error reading uploads directory:', err);
+        return;
+      }
+
+      files.forEach(file => {
+        const filePath = path.join(uploadsDir, file);
+        fs.unlink(filePath, (err) => {
+          if (err) console.error(`Failed to delete upload file ${file}:`, err);
+          else console.log(`Cleaned up upload file: ${file}`);
+        });
+      });
+    });
+  }
+};
+
+// Clean up temp files on startup
+cleanupTempFiles();
+
+// Schedule periodic cleanup every hour
+setInterval(cleanupTempFiles, 60 * 60 * 1000);
+
+// Export database as SQL in a zip file
+app.get('/api/database/export', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `gaming_dashboard_backup_${timestamp}.sql`;
+
+    // Get database credentials
+    const dbHost = process.env.DB_HOST || 'localhost';
+    const dbUser = process.env.DB_USER || 'coaches_user';
+    const dbPassword = process.env.DB_PASSWORD || 'coaches_pass';
+    const dbName = process.env.DB_NAME || 'coaches_db';
+
+    // Create temporary directory if it doesn't exist
+    const tempDir = path.join(__dirname, 'temp');
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+
+    const sqlFilePath = path.join(tempDir, filename);
+
+    // Execute mariadb-dump command (compatible with both MySQL and MariaDB)
+    const dumpCommand = `mariadb-dump -h ${dbHost} -u ${dbUser} -p${dbPassword} --skip-ssl --protocol=tcp ${dbName} > "${sqlFilePath}"`;
+
+    exec(dumpCommand, (error) => {
+      if (error) {
+        console.error('Database export error:', error);
+        return res.status(500).json({ message: 'Failed to export database' });
+      }
+
+      // Create zip archive
+      const archive = archiver('zip', { zlib: { level: 9 } });
+      const zipFilename = `gaming_dashboard_backup_${timestamp}.zip`;
+
+      res.attachment(zipFilename);
+
+      archive.on('error', (err) => {
+        console.error('Archive error:', err);
+        res.status(500).json({ message: 'Failed to create zip archive' });
+      });
+
+      archive.on('end', () => {
+        // Clean up temporary SQL file
+        fs.unlink(sqlFilePath, (err) => {
+          if (err) console.error('Failed to delete temp file:', err);
+        });
+      });
+
+      archive.pipe(res);
+      archive.file(sqlFilePath, { name: filename });
+      archive.finalize();
+    });
+
+  } catch (error) {
+    console.error('Export error:', error);
+    res.status(500).json({ message: 'Failed to export database', error: error.message });
+  }
+});
+
+// Import database from uploaded zip file
+app.post('/api/database/import', authenticateToken, requireAdmin, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+
+    const uploadedFilePath = req.file.path;
+    const tempDir = path.join(__dirname, 'temp');
+
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+
+    // Check if uploaded file is a zip
+    if (!req.file.originalname.endsWith('.zip')) {
+      fs.unlinkSync(uploadedFilePath);
+      return res.status(400).json({ message: 'Only .zip files are accepted' });
+    }
+
+    // Extract zip file
+    const AdmZip = require('adm-zip');
+    const zip = new AdmZip(uploadedFilePath);
+    const zipEntries = zip.getEntries();
+
+    // Find SQL file in zip
+    let sqlEntry = null;
+    for (const entry of zipEntries) {
+      if (entry.entryName.endsWith('.sql')) {
+        sqlEntry = entry;
+        break;
+      }
+    }
+
+    if (!sqlEntry) {
+      fs.unlinkSync(uploadedFilePath);
+      return res.status(400).json({ message: 'No SQL file found in zip archive' });
+    }
+
+    // Extract SQL file
+    const sqlFilePath = path.join(tempDir, sqlEntry.entryName);
+    zip.extractEntryTo(sqlEntry, tempDir, false, true);
+
+    // Get database credentials
+    const dbHost = process.env.DB_HOST || 'localhost';
+    const dbUser = process.env.DB_USER || 'coaches_user';
+    const dbPassword = process.env.DB_PASSWORD || 'coaches_pass';
+    const dbName = process.env.DB_NAME || 'coaches_db';
+
+    // Execute mariadb command (compatible with both MySQL and MariaDB)
+    const importCommand = `mariadb -h ${dbHost} -u ${dbUser} -p${dbPassword} --skip-ssl --protocol=tcp ${dbName} < "${sqlFilePath}"`;
+
+    exec(importCommand, (error) => {
+      // Clean up temporary files
+      fs.unlink(uploadedFilePath, (err) => {
+        if (err) console.error('Failed to delete uploaded file:', err);
+      });
+      fs.unlink(sqlFilePath, (err) => {
+        if (err) console.error('Failed to delete SQL file:', err);
+      });
+
+      if (error) {
+        console.error('Database import error:', error);
+        return res.status(500).json({ message: 'Failed to import database', error: error.message });
+      }
+
+      res.json({ message: 'Database imported successfully' });
+    });
+
+  } catch (error) {
+    console.error('Import error:', error);
+
+    // Clean up uploaded file on error
+    if (req.file && req.file.path) {
+      fs.unlink(req.file.path, (err) => {
+        if (err) console.error('Failed to delete uploaded file:', err);
+      });
+    }
+
+    res.status(500).json({ message: 'Failed to import database', error: error.message });
+  }
 });
 
 // Graceful shutdown
