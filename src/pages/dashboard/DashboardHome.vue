@@ -5,23 +5,25 @@
     </base-dialog>
     <section>
       <base-card>
-        <h1>Live Games Dashboard</h1>
-        <p class="subtitle">Watch running games in real-time</p>
+        <h1>Games Dashboard</h1>
+        <p class="subtitle">Watch live and finished games</p>
 
         <div v-if="isLoading" class="loading">
           <base-spinner></base-spinner>
         </div>
 
-        <div v-else-if="runningGames.length > 0" class="games-grid">
+        <div v-else-if="activeGames.length > 0" class="games-grid">
           <div
-            v-for="game in runningGames"
+            v-for="game in activeGames"
             :key="game.id"
             class="game-card"
+            :class="{ 'finished-game': game.status === 'past' }"
             @click="goToLiveGame(game.id)"
           >
             <div class="game-card-header">
               <h3>{{ game.name }}</h3>
-              <span class="live-badge">LIVE</span>
+              <span v-if="game.status === 'running'" class="live-badge">LIVE</span>
+              <span v-else-if="game.status === 'past'" class="finished-badge">FINISHED</span>
             </div>
             <p class="game-description">{{ game.description }}</p>
             <div class="game-meta">
@@ -32,7 +34,7 @@
         </div>
 
         <div v-else class="no-games">
-          <h3>No games are currently running</h3>
+          <h3>No active games</h3>
           <p>Check back later for live games!</p>
         </div>
       </base-card>
@@ -50,9 +52,16 @@ export default {
     };
   },
   computed: {
-    runningGames() {
+    activeGames() {
       const games = this.$store.getters['games/games'];
-      return games.filter(game => game.status === 'running');
+      // Show both running and past games
+      return games.filter(game => game.status === 'running' || game.status === 'past')
+        .sort((a, b) => {
+          // Running games first, then past games
+          if (a.status === 'running' && b.status === 'past') return -1;
+          if (a.status === 'past' && b.status === 'running') return 1;
+          return 0;
+        });
     }
   },
   async created() {
@@ -149,6 +158,20 @@ h1 {
   font-size: 0.75rem;
   font-weight: bold;
   animation: pulse 2s infinite;
+}
+
+.finished-badge {
+  background: #4CAF50;
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: bold;
+}
+
+.finished-game {
+  background: linear-gradient(135deg, #81C784 0%, #66BB6A 100%) !important;
+  opacity: 0.9;
 }
 
 @keyframes pulse {
