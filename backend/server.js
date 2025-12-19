@@ -12,8 +12,20 @@ const multer = require('multer');
 const { exec } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const http = require('http');
+const { Server } = require('socket.io');
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST']
+  }
+});
+
+// In-memory state for active time-based games
+const activeGames = new Map(); // gameId -> { status, goTime, round, results, ... }
 
 // Validate required environment variables
 const requiredEnvVars = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME', 'JWT_SECRET'];
@@ -706,6 +718,9 @@ app.get('/games', async (req, res) => {
           showInDashboard: Boolean(game.show_in_dashboard),
           status: game.status,
           displayOrder: game.display_order,
+          gameType: game.game_type || 'points',
+          timingMode: game.timing_mode || 'server',
+          countdownSeconds: game.countdown_seconds || 5,
           scoring: scoring.map(s => ({
             id: s.id,
             placeName: s.place_name,
@@ -759,6 +774,9 @@ app.get('/games/:id', async (req, res) => {
       gamingGroupName: game.gaming_group_name,
       showInDashboard: Boolean(game.show_in_dashboard),
       status: game.status,
+      gameType: game.game_type || 'points',
+      timingMode: game.timing_mode || 'server',
+      countdownSeconds: game.countdown_seconds || 5,
       scoring: scoring.map(s => ({
         id: s.id,
         placeName: s.place_name,
@@ -786,7 +804,7 @@ app.post('/games', authenticateToken, async (req, res) => {
 
     await connection.beginTransaction();
 
-    const { name, description, minimumPoint, maximumPoint, gamingGroupId, showInDashboard, status, scoring } = req.body;
+    const { name, description, minimumPoint, maximumPoint, gamingGroupId, showInDashboard, status, scoring, gameType, timingMode, countdownSeconds } = req.body;
 
     // Validate input
     if (!name || !gamingGroupId) {
@@ -810,24 +828,26 @@ app.post('/games', authenticateToken, async (req, res) => {
 
     // Insert game
     const [result] = await connection.query(
-      `INSERT INTO games (name, description, minimum_point, maximum_point, gaming_group_id, show_in_dashboard, status, display_order)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [name, description || '', minimumPoint || 0, maximumPoint || 100, gamingGroupId, showInDashboard !== false, status || 'coming', displayOrder]
+      `INSERT INTO games (name, description, minimum_point, maximum_point, gaming_group_id, show_in_dashboard, status, display_order, game_type, timing_mode, countdown_seconds)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [name, description || '', minimumPoint || 0, maximumPoint || 100, gamingGroupId, showInDashboard !== false, status || 'coming', displayOrder, gameType || 'points', timingMode || 'server', countdownSeconds || 5]
     );
 
     const gameId = result.insertId;
 
-    // Insert default scoring if not provided
-    const scoringData = scoring && scoring.length > 0 ? scoring : [
-      { placeName: '1st', place: 1, score: 5 },
-      { placeName: 'other', place: -1, score: 0 }
-    ];
+    // Insert default scoring if not provided (only for points-based games)
+    if (gameType !== 'time') {
+      const scoringData = scoring && scoring.length > 0 ? scoring : [
+        { placeName: '1st', place: 1, score: 5 },
+        { placeName: 'other', place: -1, score: 0 }
+      ];
 
-    for (const score of scoringData) {
-      await connection.query(
-        'INSERT INTO game_scoring (game_id, place_name, place, score) VALUES (?, ?, ?, ?)',
-        [gameId, score.placeName, score.place, score.score]
-      );
+      for (const score of scoringData) {
+        await connection.query(
+          'INSERT INTO game_scoring (game_id, place_name, place, score) VALUES (?, ?, ?, ?)',
+          [gameId, score.placeName, score.place, score.score]
+        );
+      }
     }
 
     await connection.commit();
@@ -841,7 +861,10 @@ app.post('/games', authenticateToken, async (req, res) => {
       gamingGroupId,
       showInDashboard: showInDashboard !== false,
       status: status || 'coming',
-      scoring: scoringData
+      gameType: gameType || 'points',
+      timingMode: timingMode || 'server',
+      countdownSeconds: countdownSeconds || 5,
+      scoring: gameType !== 'time' ? (scoring || []) : []
     });
   } catch (error) {
     await connection.rollback();
@@ -865,7 +888,7 @@ app.put('/games/:id', authenticateToken, async (req, res) => {
     await connection.beginTransaction();
 
     const { id } = req.params;
-    const { name, description, minimumPoint, maximumPoint, gamingGroupId, showInDashboard, status, scoring } = req.body;
+    const { name, description, minimumPoint, maximumPoint, gamingGroupId, showInDashboard, status, scoring, gameType, timingMode, countdownSeconds } = req.body;
 
     // Validate input
     if (!name || !gamingGroupId) {
@@ -874,7 +897,7 @@ app.put('/games/:id', authenticateToken, async (req, res) => {
     }
 
     // Check if game exists
-    const [existingGame] = await connection.query('SELECT id FROM games WHERE id = ?', [id]);
+    const [existingGame] = await connection.query('SELECT id, game_type FROM games WHERE id = ?', [id]);
     if (existingGame.length === 0) {
       await connection.rollback();
       return res.status(404).json({ message: 'Game not found' });
@@ -891,13 +914,15 @@ app.put('/games/:id', authenticateToken, async (req, res) => {
     await connection.query(
       `UPDATE games
        SET name = ?, description = ?, minimum_point = ?, maximum_point = ?,
-           gaming_group_id = ?, show_in_dashboard = ?, status = ?
+           gaming_group_id = ?, show_in_dashboard = ?, status = ?,
+           game_type = ?, timing_mode = ?, countdown_seconds = ?
        WHERE id = ?`,
-      [name, description || '', minimumPoint || 0, maximumPoint || 100, gamingGroupId, showInDashboard !== false, status || 'coming', id]
+      [name, description || '', minimumPoint || 0, maximumPoint || 100, gamingGroupId, showInDashboard !== false, status || 'coming', gameType || 'points', timingMode || 'server', countdownSeconds || 5, id]
     );
 
-    // Update scoring if provided
-    if (scoring && scoring.length > 0) {
+    // Update scoring if provided (only for points-based games)
+    const effectiveGameType = gameType || existingGame[0].game_type || 'points';
+    if (effectiveGameType !== 'time' && scoring && scoring.length > 0) {
       // Delete existing scoring
       await connection.query('DELETE FROM game_scoring WHERE game_id = ?', [id]);
 
@@ -921,6 +946,9 @@ app.put('/games/:id', authenticateToken, async (req, res) => {
       gamingGroupId,
       showInDashboard: showInDashboard !== false,
       status: status || 'coming',
+      gameType: gameType || 'points',
+      timingMode: timingMode || 'server',
+      countdownSeconds: countdownSeconds || 5,
       scoring: scoring || []
     });
   } catch (error) {
@@ -1427,8 +1455,677 @@ app.post('/gaming-groups/:groupId/calculate-scores', authenticateToken, async (r
   }
 });
 
+// ==================== TIME SYNC ENDPOINT ====================
+
+// Time sync endpoint for client clock synchronization
+app.get('/time-sync', (req, res) => {
+  res.json({ serverTime: Date.now() });
+});
+
+// ==================== TEAM ACCESS CODES ENDPOINTS ====================
+
+// Generate 3-digit code
+function generateCode() {
+  return Math.floor(100 + Math.random() * 900).toString();
+}
+
+// Generate unique code for a game
+async function generateUniqueCode(gameId) {
+  let code;
+  let attempts = 0;
+  const maxAttempts = 50;
+
+  while (attempts < maxAttempts) {
+    code = generateCode();
+    const [existing] = await pool.query(
+      'SELECT id FROM team_access_codes WHERE game_id = ? AND code = ?',
+      [gameId, code]
+    );
+    if (existing.length === 0) {
+      return code;
+    }
+    attempts++;
+  }
+  throw new Error('Could not generate unique code');
+}
+
+// Get team access codes for a game
+app.get('/games/:id/access-codes', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const [codes] = await pool.query(`
+      SELECT tac.*, t.name as team_name
+      FROM team_access_codes tac
+      JOIN teams t ON t.id = tac.team_id
+      WHERE tac.game_id = ?
+      ORDER BY t.name ASC
+    `, [id]);
+
+    res.json(codes.map(c => ({
+      id: c.id,
+      gameId: c.game_id,
+      teamId: c.team_id,
+      teamName: c.team_name,
+      code: c.code,
+      status: c.status,
+      connectedAt: c.connected_at,
+      reactionTimeMs: c.reaction_time_ms
+    })));
+  } catch (error) {
+    console.error('Error fetching access codes:', error);
+    res.status(500).json({ message: 'Failed to fetch access codes' });
+  }
+});
+
+// Generate code for a single team
+app.post('/games/:id/access-codes/generate', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { teamId } = req.body;
+
+    if (!teamId) {
+      return res.status(400).json({ message: 'Team ID is required' });
+    }
+
+    const code = await generateUniqueCode(id);
+
+    await pool.query(`
+      INSERT INTO team_access_codes (game_id, team_id, code, status)
+      VALUES (?, ?, ?, 'available')
+      ON DUPLICATE KEY UPDATE code = ?, status = 'available', socket_id = NULL
+    `, [id, teamId, code, code]);
+
+    res.json({ gameId: parseInt(id), teamId, code });
+  } catch (error) {
+    console.error('Error generating access code:', error);
+    res.status(500).json({ message: 'Failed to generate access code' });
+  }
+});
+
+// Generate codes for multiple teams
+app.post('/games/:id/access-codes/generate-bulk', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { teamIds } = req.body;
+
+    if (!teamIds || !Array.isArray(teamIds) || teamIds.length === 0) {
+      return res.status(400).json({ message: 'Team IDs array is required' });
+    }
+
+    const results = [];
+    for (const teamId of teamIds) {
+      const code = await generateUniqueCode(id);
+      await pool.query(`
+        INSERT INTO team_access_codes (game_id, team_id, code, status)
+        VALUES (?, ?, ?, 'available')
+        ON DUPLICATE KEY UPDATE code = ?, status = 'available', socket_id = NULL
+      `, [id, teamId, code, code]);
+      results.push({ teamId, code });
+    }
+
+    res.json({ gameId: parseInt(id), codes: results });
+  } catch (error) {
+    console.error('Error generating access codes:', error);
+    res.status(500).json({ message: 'Failed to generate access codes' });
+  }
+});
+
+// Reset code for a team (generate new code and kick existing connection)
+app.post('/games/:id/access-codes/reset', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { teamId } = req.body;
+
+    if (!teamId) {
+      return res.status(400).json({ message: 'Team ID is required' });
+    }
+
+    // Get existing code to kick socket
+    const [existing] = await pool.query(
+      'SELECT socket_id FROM team_access_codes WHERE game_id = ? AND team_id = ?',
+      [id, teamId]
+    );
+
+    if (existing.length > 0 && existing[0].socket_id) {
+      const socket = io.sockets.sockets.get(existing[0].socket_id);
+      if (socket) {
+        socket.emit('team:kicked', { reason: 'Code was reset by moderator' });
+        socket.disconnect(true);
+      }
+    }
+
+    // Generate new code
+    const code = await generateUniqueCode(id);
+    await pool.query(`
+      UPDATE team_access_codes
+      SET code = ?, status = 'available', socket_id = NULL, connected_at = NULL,
+          pressed_at = NULL, reaction_time_ms = NULL
+      WHERE game_id = ? AND team_id = ?
+    `, [code, id, teamId]);
+
+    res.json({ gameId: parseInt(id), teamId, code });
+  } catch (error) {
+    console.error('Error resetting access code:', error);
+    res.status(500).json({ message: 'Failed to reset access code' });
+  }
+});
+
+// Validate access code (public endpoint for team board)
+app.get('/teamboard/validate/:code', async (req, res) => {
+  try {
+    const { code } = req.params;
+    const { gameId } = req.query;
+
+    let query = `
+      SELECT tac.*, t.name as team_name, g.name as game_name, g.game_type,
+             g.timing_mode, g.maximum_point, g.countdown_seconds
+      FROM team_access_codes tac
+      JOIN teams t ON t.id = tac.team_id
+      JOIN games g ON g.id = tac.game_id
+      WHERE tac.code = ?
+    `;
+    const params = [code];
+
+    if (gameId) {
+      query += ' AND tac.game_id = ?';
+      params.push(gameId);
+    }
+
+    const [codes] = await pool.query(query, params);
+
+    if (codes.length === 0) {
+      return res.status(404).json({ message: 'Invalid code' });
+    }
+
+    const c = codes[0];
+
+    if (c.status === 'active') {
+      return res.status(403).json({ message: 'Code is already in use' });
+    }
+
+    if (c.status === 'disabled') {
+      return res.status(403).json({ message: 'Code has been disabled' });
+    }
+
+    res.json({
+      gameId: c.game_id,
+      teamId: c.team_id,
+      teamName: c.team_name,
+      gameName: c.game_name,
+      gameType: c.game_type,
+      timingMode: c.timing_mode,
+      maxPoints: c.maximum_point,
+      countdownSeconds: c.countdown_seconds,
+      status: c.status
+    });
+  } catch (error) {
+    console.error('Error validating code:', error);
+    res.status(500).json({ message: 'Failed to validate code' });
+  }
+});
+
+// ==================== SOCKET.IO HANDLERS ====================
+
+io.on('connection', (socket) => {
+  console.log('Socket connected:', socket.id);
+
+  // Team joins with access code
+  socket.on('team:join', async ({ code, gameId }) => {
+    try {
+      const [codes] = await pool.query(`
+        SELECT tac.*, t.name as team_name, g.timing_mode
+        FROM team_access_codes tac
+        JOIN teams t ON t.id = tac.team_id
+        JOIN games g ON g.id = tac.game_id
+        WHERE tac.code = ? AND tac.game_id = ?
+      `, [code, gameId]);
+
+      if (codes.length === 0) {
+        socket.emit('team:rejected', { reason: 'Invalid code' });
+        return;
+      }
+
+      const accessCode = codes[0];
+
+      if (accessCode.status === 'active' && accessCode.socket_id !== socket.id) {
+        socket.emit('team:rejected', { reason: 'Code is already in use' });
+        return;
+      }
+
+      if (accessCode.status === 'disabled') {
+        socket.emit('team:rejected', { reason: 'Code has been disabled' });
+        return;
+      }
+
+      // Lock the code to this socket
+      await pool.query(`
+        UPDATE team_access_codes
+        SET status = 'active', socket_id = ?, connected_at = NOW()
+        WHERE id = ?
+      `, [socket.id, accessCode.id]);
+
+      socket.accessCodeId = accessCode.id;
+      socket.teamId = accessCode.team_id;
+      socket.gameId = gameId;
+      socket.teamName = accessCode.team_name;
+      socket.timingMode = accessCode.timing_mode;
+
+      socket.join(`game:${gameId}`);
+
+      socket.emit('team:validated', {
+        teamName: accessCode.team_name,
+        gameId,
+        teamId: accessCode.team_id
+      });
+
+      // Notify evaluators
+      io.to(`evaluator:${gameId}`).emit('team:connected', {
+        teamId: accessCode.team_id,
+        teamName: accessCode.team_name
+      });
+
+      console.log(`Team ${accessCode.team_name} connected to game ${gameId}`);
+    } catch (error) {
+      console.error('Error in team:join:', error);
+      socket.emit('team:rejected', { reason: 'Server error' });
+    }
+  });
+
+  // Evaluator joins to monitor game
+  socket.on('evaluator:join', async ({ gameId, token }) => {
+    try {
+      // Verify JWT token
+      const decoded = jwt.verify(token, JWT_SECRET);
+      socket.userId = decoded.userId;
+      socket.gameId = gameId;
+      socket.isEvaluator = true;
+
+      socket.join(`evaluator:${gameId}`);
+      socket.join(`game:${gameId}`);
+
+      // Send current game state if exists
+      const gameState = activeGames.get(parseInt(gameId));
+      if (gameState) {
+        socket.emit('game:state', gameState);
+      }
+
+      // Send current team connection statuses
+      const [codes] = await pool.query(`
+        SELECT tac.team_id, tac.status, t.name as team_name
+        FROM team_access_codes tac
+        JOIN teams t ON t.id = tac.team_id
+        WHERE tac.game_id = ?
+      `, [gameId]);
+
+      socket.emit('teams:status', codes.map(c => ({
+        teamId: c.team_id,
+        teamName: c.team_name,
+        status: c.status
+      })));
+
+      console.log(`Evaluator joined game ${gameId}`);
+    } catch (error) {
+      console.error('Error in evaluator:join:', error);
+      socket.emit('error', { message: 'Authentication failed' });
+    }
+  });
+
+  // Evaluator starts the game round
+  socket.on('game:start', async ({ gameId, countdownSeconds }) => {
+    if (!socket.isEvaluator) return;
+
+    try {
+      const countdown = countdownSeconds || 5;
+      const now = Date.now();
+      const goTime = now + (countdown * 1000);
+
+      // Get game details
+      const [games] = await pool.query(
+        'SELECT maximum_point, timing_mode FROM games WHERE id = ?',
+        [gameId]
+      );
+      if (games.length === 0) return;
+
+      const game = games[0];
+      const maxTimeMs = game.maximum_point * 100; // max_point in tenths of seconds
+
+      // Reset team results for this round
+      await pool.query(`
+        UPDATE team_access_codes
+        SET pressed_at = NULL, reaction_time_ms = NULL
+        WHERE game_id = ?
+      `, [gameId]);
+
+      // Get connected teams (only 'active' status can play)
+      const [connectedTeams] = await pool.query(`
+        SELECT tac.team_id, tac.socket_id, t.name as team_name
+        FROM team_access_codes tac
+        JOIN teams t ON t.id = tac.team_id
+        WHERE tac.game_id = ? AND tac.status = 'active'
+      `, [gameId]);
+
+      // Mark disconnected teams as 'lost'
+      const [disconnectedTeams] = await pool.query(`
+        SELECT tac.team_id, t.name as team_name
+        FROM team_access_codes tac
+        JOIN teams t ON t.id = tac.team_id
+        WHERE tac.game_id = ? AND tac.status != 'active' AND tac.code IS NOT NULL
+      `, [gameId]);
+
+      // Store game state
+      const gameState = {
+        status: 'countdown',
+        goTime,
+        maxTimeMs,
+        countdownSeconds: countdown,
+        timingMode: game.timing_mode,
+        maxPoints: game.maximum_point,
+        startedAt: now,
+        results: new Map(),
+        connectedTeams: connectedTeams.map(t => t.team_id)
+      };
+      activeGames.set(parseInt(gameId), gameState);
+
+      // Broadcast countdown to all clients in game room
+      io.to(`game:${gameId}`).emit('game:countdown', {
+        startsAt: goTime,
+        countdownSeconds: countdown,
+        maxTimeMs,
+        serverTime: now
+      });
+
+      // Schedule GO event
+      setTimeout(() => {
+        const state = activeGames.get(parseInt(gameId));
+        if (state && state.status === 'countdown') {
+          state.status = 'running';
+          state.goTime = Date.now();
+          io.to(`game:${gameId}`).emit('game:go', {
+            goTime: state.goTime,
+            maxTimeMs
+          });
+        }
+      }, countdown * 1000);
+
+      // Schedule timeout
+      setTimeout(() => {
+        endRound(gameId);
+      }, (countdown * 1000) + maxTimeMs + 500);
+
+      console.log(`Game ${gameId} started with ${countdown}s countdown`);
+    } catch (error) {
+      console.error('Error in game:start:', error);
+    }
+  });
+
+  // Team presses the button
+  socket.on('team:press', async ({ pressTime }) => {
+    if (!socket.teamId || !socket.gameId) return;
+
+    try {
+      const gameState = activeGames.get(parseInt(socket.gameId));
+      if (!gameState || gameState.status !== 'running') {
+        socket.emit('press:rejected', { reason: 'Game not running' });
+        return;
+      }
+
+      // Check if already pressed
+      if (gameState.results.has(socket.teamId)) {
+        socket.emit('press:rejected', { reason: 'Already pressed' });
+        return;
+      }
+
+      // Calculate reaction time
+      let reactionTimeMs;
+      if (socket.timingMode === 'client' && pressTime) {
+        // Client-trusted: use client's reported time
+        reactionTimeMs = pressTime - gameState.goTime;
+      } else {
+        // Server-trusted: use server receive time
+        reactionTimeMs = Date.now() - gameState.goTime;
+      }
+
+      // Clamp to valid range
+      reactionTimeMs = Math.max(0, Math.min(reactionTimeMs, gameState.maxTimeMs + 100));
+
+      // Calculate points
+      const points = Math.max(0, gameState.maxPoints - Math.floor(reactionTimeMs / 100));
+
+      // Store result
+      gameState.results.set(socket.teamId, {
+        teamId: socket.teamId,
+        teamName: socket.teamName,
+        reactionTimeMs,
+        points,
+        pressedAt: Date.now()
+      });
+
+      // Update database
+      await pool.query(`
+        UPDATE team_access_codes
+        SET pressed_at = NOW(), reaction_time_ms = ?
+        WHERE game_id = ? AND team_id = ?
+      `, [reactionTimeMs, socket.gameId, socket.teamId]);
+
+      // Acknowledge to team
+      socket.emit('press:confirmed', {
+        reactionTimeMs,
+        displayTime: (reactionTimeMs / 1000).toFixed(1),
+        points
+      });
+
+      // Notify evaluators
+      io.to(`evaluator:${socket.gameId}`).emit('team:pressed', {
+        teamId: socket.teamId,
+        teamName: socket.teamName,
+        reactionTimeMs,
+        displayTime: (reactionTimeMs / 1000).toFixed(1),
+        points
+      });
+
+      console.log(`Team ${socket.teamName} pressed at ${reactionTimeMs}ms = ${points} points`);
+
+      // Check if all connected teams have pressed
+      const allPressed = gameState.connectedTeams.every(tid => gameState.results.has(tid));
+      if (allPressed) {
+        endRound(socket.gameId);
+      }
+    } catch (error) {
+      console.error('Error in team:press:', error);
+    }
+  });
+
+  // Evaluator discards the round
+  socket.on('game:discard', async ({ gameId }) => {
+    if (!socket.isEvaluator) return;
+
+    try {
+      const gameState = activeGames.get(parseInt(gameId));
+      if (gameState) {
+        gameState.status = 'discarded';
+      }
+
+      // Reset team results
+      await pool.query(`
+        UPDATE team_access_codes
+        SET pressed_at = NULL, reaction_time_ms = NULL
+        WHERE game_id = ?
+      `, [gameId]);
+
+      // Notify all clients
+      io.to(`game:${gameId}`).emit('game:discarded', {
+        message: 'Round discarded by moderator'
+      });
+
+      activeGames.delete(parseInt(gameId));
+
+      console.log(`Game ${gameId} round discarded`);
+    } catch (error) {
+      console.error('Error in game:discard:', error);
+    }
+  });
+
+  // Evaluator confirms and saves results
+  socket.on('game:confirm', async ({ gameId }) => {
+    if (!socket.isEvaluator) return;
+
+    try {
+      const gameState = activeGames.get(parseInt(gameId));
+      if (!gameState || gameState.status !== 'completed') {
+        socket.emit('error', { message: 'No completed round to confirm' });
+        return;
+      }
+
+      // Get game details
+      const [games] = await pool.query(
+        'SELECT gaming_group_id FROM games WHERE id = ?',
+        [gameId]
+      );
+      if (games.length === 0) return;
+
+      const connection = await pool.getConnection();
+      try {
+        await connection.beginTransaction();
+
+        // Save scores to game_scores table
+        for (const [teamId, result] of gameState.results) {
+          await connection.query(`
+            INSERT INTO game_scores (game_id, team_id, score)
+            VALUES (?, ?, ?)
+            ON DUPLICATE KEY UPDATE score = ?
+          `, [gameId, teamId, result.points, result.points]);
+        }
+
+        // Handle teams that didn't press (timeout = 0 points)
+        const [allCodes] = await connection.query(`
+          SELECT team_id FROM team_access_codes WHERE game_id = ?
+        `, [gameId]);
+
+        for (const code of allCodes) {
+          if (!gameState.results.has(code.team_id)) {
+            await connection.query(`
+              INSERT INTO game_scores (game_id, team_id, score)
+              VALUES (?, ?, 0)
+              ON DUPLICATE KEY UPDATE score = 0
+            `, [gameId, code.team_id]);
+          }
+        }
+
+        // Recalculate group scores
+        await calculateGroupScores(connection, games[0].gaming_group_id);
+
+        await connection.commit();
+
+        // Notify all clients
+        io.to(`game:${gameId}`).emit('game:confirmed', {
+          message: 'Results saved successfully'
+        });
+
+        activeGames.delete(parseInt(gameId));
+
+        console.log(`Game ${gameId} results confirmed and saved`);
+      } catch (error) {
+        await connection.rollback();
+        throw error;
+      } finally {
+        connection.release();
+      }
+    } catch (error) {
+      console.error('Error in game:confirm:', error);
+      socket.emit('error', { message: 'Failed to save results' });
+    }
+  });
+
+  // Handle disconnect
+  socket.on('disconnect', async () => {
+    console.log('Socket disconnected:', socket.id);
+
+    if (socket.accessCodeId) {
+      try {
+        // Check timing mode for disconnect handling
+        const gameState = activeGames.get(parseInt(socket.gameId));
+
+        if (gameState && gameState.status === 'running' && socket.timingMode === 'server') {
+          // Server-trust mode: kick immediately (1 sec tolerance handled by client)
+          await pool.query(`
+            UPDATE team_access_codes
+            SET status = 'used', disconnected_at = NOW()
+            WHERE id = ?
+          `, [socket.accessCodeId]);
+
+          io.to(`evaluator:${socket.gameId}`).emit('team:lost', {
+            teamId: socket.teamId,
+            teamName: socket.teamName
+          });
+        } else {
+          // Mark as disconnected but allow reconnect
+          await pool.query(`
+            UPDATE team_access_codes
+            SET status = 'available', socket_id = NULL, disconnected_at = NOW()
+            WHERE id = ?
+          `, [socket.accessCodeId]);
+
+          io.to(`evaluator:${socket.gameId}`).emit('team:disconnected', {
+            teamId: socket.teamId,
+            teamName: socket.teamName
+          });
+        }
+      } catch (error) {
+        console.error('Error handling disconnect:', error);
+      }
+    }
+  });
+});
+
+// End round helper function
+async function endRound(gameId) {
+  const gameState = activeGames.get(parseInt(gameId));
+  if (!gameState || gameState.status === 'completed' || gameState.status === 'discarded') {
+    return;
+  }
+
+  gameState.status = 'completed';
+
+  // Get all teams and mark timeouts
+  try {
+    const [codes] = await pool.query(`
+      SELECT tac.team_id, t.name as team_name
+      FROM team_access_codes tac
+      JOIN teams t ON t.id = tac.team_id
+      WHERE tac.game_id = ?
+    `, [gameId]);
+
+    const results = [];
+    for (const code of codes) {
+      if (gameState.results.has(code.team_id)) {
+        results.push(gameState.results.get(code.team_id));
+      } else {
+        // Timeout - didn't press
+        results.push({
+          teamId: code.team_id,
+          teamName: code.team_name,
+          reactionTimeMs: gameState.maxTimeMs + 100,
+          points: 0,
+          timedOut: true
+        });
+      }
+    }
+
+    // Sort by reaction time
+    results.sort((a, b) => a.reactionTimeMs - b.reactionTimeMs);
+
+    // Broadcast results
+    io.to(`game:${gameId}`).emit('game:results', { results });
+
+    console.log(`Game ${gameId} round completed with ${results.length} results`);
+  } catch (error) {
+    console.error('Error in endRound:', error);
+  }
+}
+
 // Start server
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
 

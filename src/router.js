@@ -14,8 +14,10 @@ const GamingGroupForm = () => import('./pages/gaming-groups/GamingGroupForm.vue'
 const GamesList = () => import('./pages/games/GamesList.vue');
 const GameForm = () => import('./pages/games/GameForm.vue');
 const GameEvaluation = () => import('./pages/games/GameEvaluation.vue');
+const TimeGameEvaluation = () => import('./pages/games/TimeGameEvaluation.vue');
 const TeamsList = () => import('./pages/teams/TeamsList.vue');
 const TeamForm = () => import('./pages/teams/TeamForm.vue');
+const TeamBoard = () => import('./pages/teamboard/TeamBoard.vue');
 const NotFound = () => import('./pages/NotFound.vue');
 
 
@@ -39,6 +41,9 @@ const router = createRouter({
     { path: '/teams', component: TeamsList },
     { path: '/teams/new', component: TeamForm },
     { path: '/teams/:id/edit', component: TeamForm },
+    { path: '/teamboard', component: TeamBoard },
+    { path: '/teamboard/:code', component: TeamBoard, props: true },
+    { path: '/games/:id/time', component: TimeGameEvaluation, props: true },
     { path: '/:notFound(.*)', component: NotFound }
   ]
 });

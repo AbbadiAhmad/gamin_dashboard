@@ -111,6 +111,13 @@ export default {
   },
   async created() {
     await this.loadData();
+
+    // Redirect to time-based evaluation if game type is 'time'
+    if (this.game && this.game.gameType === 'time') {
+      this.$router.replace(`/games/${this.id}/time`);
+      return;
+    }
+
     if (this.game && this.game.status === 'past' && !this.pastWarningShown) {
       this.showPastEditWarning = true;
     }

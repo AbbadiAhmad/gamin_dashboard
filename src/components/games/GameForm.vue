@@ -70,14 +70,53 @@
     </div>
 
     <div class="form-control">
+      <label for="gameType">Game Type</label>
+      <select id="gameType" v-model="gameType.val">
+        <option value="points">Points-Based (Manual Scoring)</option>
+        <option value="time">Time-Based (Reaction Game)</option>
+      </select>
+    </div>
+
+    <!-- Time-based game options -->
+    <div v-if="gameType.val === 'time'" class="time-options">
+      <div class="form-row">
+        <div class="form-control">
+          <label for="timingMode">Timing Mode</label>
+          <select id="timingMode" v-model="timingMode.val">
+            <option value="server">Server-Trusted (requires stable connection)</option>
+            <option value="client">Client-Trusted (works with poor connection)</option>
+          </select>
+        </div>
+
+        <div class="form-control">
+          <label for="countdownSeconds">Countdown (seconds)</label>
+          <select id="countdownSeconds" v-model.number="countdownSeconds.val">
+            <option :value="3">3 seconds</option>
+            <option :value="5">5 seconds</option>
+            <option :value="10">10 seconds</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="time-info">
+        <p><strong>Note:</strong> For time-based games:</p>
+        <ul>
+          <li>Maximum Point = Max time in tenths of seconds (e.g., 100 = 10.0 seconds)</li>
+          <li>Score = Max Points - (reaction time in tenths)</li>
+          <li>Example: Max 100, reaction 2.3s → Score = 100 - 23 = 77</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="form-control">
       <label>
         <input type="checkbox" v-model="showInDashboard.val" />
         Show in Dashboard
       </label>
     </div>
 
-    <h3>Scoring Configuration</h3>
-    <div class="scoring-section">
+    <h3 v-if="gameType.val !== 'time'">Scoring Configuration</h3>
+    <div class="scoring-section" v-if="gameType.val !== 'time'">
       <div v-for="(score, index) in scoring" :key="index" class="scoring-item">
         <div class="form-row">
           <div class="form-control">
@@ -150,6 +189,15 @@ export default {
       status: {
         val: this.gameData?.status || 'coming',
       },
+      gameType: {
+        val: this.gameData?.gameType || 'points',
+      },
+      timingMode: {
+        val: this.gameData?.timingMode || 'server',
+      },
+      countdownSeconds: {
+        val: this.gameData?.countdownSeconds || 5,
+      },
       showInDashboard: {
         val: this.gameData?.showInDashboard !== false,
       },
@@ -207,8 +255,11 @@ export default {
         maximumPoint: this.maximumPoint.val,
         gamingGroupId: this.gamingGroupId.val,
         status: this.status.val,
+        gameType: this.gameType.val,
+        timingMode: this.timingMode.val,
+        countdownSeconds: this.countdownSeconds.val,
         showInDashboard: this.showInDashboard.val,
-        scoring: this.scoring
+        scoring: this.gameType.val !== 'time' ? this.scoring : []
       };
 
       this.$emit('save-data', formData);
@@ -305,6 +356,34 @@ select:focus {
 h3 {
   margin-top: 1.5rem;
   margin-bottom: 0.5rem;
+}
+
+.time-options {
+  background: #e3f2fd;
+  padding: 1rem;
+  border-radius: 8px;
+  margin: 1rem 0;
+}
+
+.time-info {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background: white;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.time-info p {
+  margin: 0 0 0.5rem 0;
+}
+
+.time-info ul {
+  margin: 0;
+  padding-left: 1.5rem;
+}
+
+.time-info li {
+  margin-bottom: 0.25rem;
 }
 
 .actions {

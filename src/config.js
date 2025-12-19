@@ -19,3 +19,6 @@ const getApiBaseUrl = () => {
 };
 
 export const API_BASE_URL = getApiBaseUrl();
+
+// Socket.io URL (same as API but for WebSocket connections)
+export const SOCKET_URL = getApiBaseUrl();

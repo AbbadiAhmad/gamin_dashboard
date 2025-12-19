@@ -87,6 +87,9 @@ CREATE TABLE IF NOT EXISTS games (
     show_in_dashboard BOOLEAN DEFAULT TRUE,
     status ENUM('coming', 'running', 'past') NOT NULL DEFAULT 'coming',
     display_order INT NOT NULL DEFAULT 0,
+    game_type ENUM('points', 'time') NOT NULL DEFAULT 'points',
+    timing_mode ENUM('server', 'client') NOT NULL DEFAULT 'server',
+    countdown_seconds INT NOT NULL DEFAULT 5,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (gaming_group_id) REFERENCES gaming_groups(id) ON DELETE CASCADE
@@ -152,3 +155,27 @@ CREATE TABLE IF NOT EXISTS game_scores (
 -- Create indexes for game_scores
 CREATE INDEX idx_game_scores_game_id ON game_scores(game_id);
 CREATE INDEX idx_game_scores_team_id ON game_scores(team_id);
+
+-- Create team_access_codes table for time-based games
+CREATE TABLE IF NOT EXISTS team_access_codes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    game_id INT NOT NULL,
+    team_id INT NOT NULL,
+    code VARCHAR(3) NOT NULL,
+    status ENUM('available', 'active', 'used', 'disabled') DEFAULT 'available',
+    socket_id VARCHAR(100) NULL,
+    connected_at TIMESTAMP NULL,
+    disconnected_at TIMESTAMP NULL,
+    pressed_at TIMESTAMP NULL,
+    reaction_time_ms INT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE,
+    FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_game_code (game_id, code),
+    UNIQUE KEY unique_game_team (game_id, team_id)
+);
+
+-- Create indexes for team_access_codes
+CREATE INDEX idx_team_access_codes_game_id ON team_access_codes(game_id);
+CREATE INDEX idx_team_access_codes_code ON team_access_codes(code);
