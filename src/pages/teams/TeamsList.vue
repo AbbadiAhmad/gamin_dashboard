@@ -5,9 +5,10 @@
     </base-dialog>
     <section>
       <base-card>
+        <the-breadcrumb :crumbs="[{ label: 'Teams' }]"></the-breadcrumb>
         <div class="controls">
           <base-button mode="outline" @click="loadTeams(true)">Refresh</base-button>
-          <base-button v-if="isAdmin && !isLoading" link to="/teams/new">Add New Team</base-button>
+          <base-button v-if="adminModeEnabled && !isLoading" link to="/teams/new">Add New Team</base-button>
         </div>
         <div v-if="isLoading">
           <base-spinner></base-spinner>
@@ -30,10 +31,12 @@
 
 <script>
 import TeamItem from '../../components/teams/TeamItem.vue';
+import TheBreadcrumb from '../../components/ui/TheBreadcrumb.vue';
 
 export default {
   components: {
-    TeamItem
+    TeamItem,
+    TheBreadcrumb
   },
   data() {
     return {
@@ -44,6 +47,9 @@ export default {
   computed: {
     isAdmin() {
       return this.$store.getters['auth/userRole'] === 'administrator';
+    },
+    adminModeEnabled() {
+      return this.$store.getters.adminModeEnabled;
     },
     teams() {
       return this.$store.getters['teams/teams'];

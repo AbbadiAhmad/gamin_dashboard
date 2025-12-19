@@ -5,6 +5,7 @@
     </base-dialog>
     <section v-if="!isLoading">
       <div class="dashboard-header">
+        <the-breadcrumb :crumbs="[{ label: 'Gaming Groups Dashboard' }]"></the-breadcrumb>
         <h1>Gaming Groups Dashboard</h1>
         <p class="subtitle">Live team rankings and scores</p>
       </div>
@@ -59,8 +60,12 @@
 
 <script>
 import { API_BASE_URL } from '../../config.js';
+import TheBreadcrumb from '../../components/ui/TheBreadcrumb.vue';
 
 export default {
+  components: {
+    TheBreadcrumb
+  },
   data() {
     return {
       isLoading: false,

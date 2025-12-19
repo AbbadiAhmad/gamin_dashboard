@@ -7,8 +7,6 @@
           <p>{{ description }}</p>
           <div class="actions">
             <base-button link :to="viewDetailsLink">View Details</base-button>
-            <base-button v-if="isAdmin" mode="outline" @click="editGroup">Edit</base-button>
-            <base-button v-if="isAdmin" mode="flat" @click="deleteGroup">Delete</base-button>
           </div>
         </div>
         <div v-if="isAdmin" class="dashboard-toggle">
@@ -41,12 +39,6 @@ export default {
     }
   },
   methods: {
-    editGroup() {
-      this.$emit('edit', this.id);
-    },
-    deleteGroup() {
-      this.$emit('delete', this.id);
-    },
     async toggleDashboard(event) {
       const newValue = event.target.checked;
       try {
@@ -181,5 +173,52 @@ input:checked + .slider:before {
 
 input:checked + .slider:hover {
   background-color: #2d006d;
+}
+
+@media (max-width: 768px) {
+  .group-container {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .dashboard-toggle {
+    flex-direction: row;
+    justify-content: center;
+    padding: 0.75rem;
+    min-width: auto;
+    width: 100%;
+  }
+
+  .toggle-label {
+    font-size: 0.9rem;
+  }
+
+  .actions {
+    gap: 0.25rem;
+  }
+
+  h3 {
+    font-size: 1.25rem;
+  }
+}
+
+@media (max-width: 480px) {
+  h3 {
+    font-size: 1.1rem;
+  }
+
+  .actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .actions button {
+    width: 100%;
+    margin: 0.25rem 0;
+  }
+
+  .dashboard-toggle {
+    padding: 1rem;
+  }
 }
 </style>

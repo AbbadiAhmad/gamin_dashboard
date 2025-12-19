@@ -18,12 +18,29 @@ const store = createStore({
   },
   state() {
     return {
-      userId: 'c3'
+      userId: 'c3',
+      adminModeEnabled: false
     };
   },
   getters: {
     userId(state) {
       return state.userId;
+    },
+    adminModeEnabled(state) {
+      return state.adminModeEnabled;
+    }
+  },
+  mutations: {
+    setAdminMode(state, enabled) {
+      state.adminModeEnabled = enabled;
+    }
+  },
+  actions: {
+    toggleAdminMode({ commit, state }) {
+      commit('setAdminMode', !state.adminModeEnabled);
+    },
+    setAdminMode({ commit }, enabled) {
+      commit('setAdminMode', enabled);
     }
   }
 });

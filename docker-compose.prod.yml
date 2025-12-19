@@ -47,7 +47,7 @@ services:
         - VUE_APP_API_URL=${VUE_APP_API_URL}
     container_name: vue-game_dashboard-frontend
     ports:
-      - "8081:80"
+      - "2025:80"
     depends_on:
       - backend
 

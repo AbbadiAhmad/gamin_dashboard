@@ -19,6 +19,11 @@
     </base-dialog>
     <section v-if="!isLoading && game">
       <base-card>
+        <the-breadcrumb :crumbs="[
+          { label: 'Gaming Groups', to: '/gaming-groups' },
+          { label: game.gamingGroupName || 'Group', to: `/gaming-groups/${game.gamingGroupId}` },
+          { label: game.name }
+        ]"></the-breadcrumb>
         <div class="game-header">
           <div class="game-info">
             <h2>{{ game.name }}</h2>
@@ -76,8 +81,12 @@
 
 <script>
 import { API_BASE_URL } from '../../config.js';
+import TheBreadcrumb from '../../components/ui/TheBreadcrumb.vue';
 
 export default {
+  components: {
+    TheBreadcrumb
+  },
   props: ['id'],
   data() {
     return {
@@ -418,5 +427,84 @@ export default {
   padding: 3rem;
   color: #666;
   font-style: italic;
+}
+
+@media (max-width: 768px) {
+  .game-header {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .game-info h2 {
+    font-size: 1.5rem;
+  }
+
+  .description {
+    font-size: 1rem;
+  }
+
+  .status-actions {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .status-actions button {
+    width: 100%;
+  }
+
+  .team-score-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .score-input {
+    width: 100%;
+    align-items: stretch;
+  }
+
+  .score-input input {
+    width: 100%;
+  }
+
+  .teams-scores h3 {
+    font-size: 1.25rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .game-info h2 {
+    font-size: 1.25rem;
+  }
+
+  .description {
+    font-size: 0.95rem;
+  }
+
+  .points-range {
+    font-size: 0.9rem;
+    padding: 0.4rem 0.75rem;
+  }
+
+  .status-badge {
+    font-size: 0.75rem;
+    padding: 0.4rem 0.75rem;
+  }
+
+  .team-score-item {
+    padding: 1rem;
+  }
+
+  .team-name h4 {
+    font-size: 1.1rem;
+  }
+
+  .team-name p {
+    font-size: 0.85rem;
+  }
+
+  .no-teams {
+    padding: 2rem 1rem;
+  }
 }
 </style>

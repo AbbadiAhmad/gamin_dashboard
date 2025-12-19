@@ -1,6 +1,10 @@
 <template>
   <section>
     <base-card>
+      <the-breadcrumb :crumbs="[
+        { label: 'Gaming Groups', to: '/gaming-groups' },
+        { label: isEdit ? 'Edit Gaming Group' : 'Add Gaming Group' }
+      ]"></the-breadcrumb>
       <h2>{{ isEdit ? 'Edit' : 'Add' }} Gaming Group</h2>
       <gaming-group-form
         :is-edit="isEdit"
@@ -13,10 +17,12 @@
 
 <script>
 import GamingGroupForm from '../../components/gaming-groups/GamingGroupForm.vue';
+import TheBreadcrumb from '../../components/ui/TheBreadcrumb.vue';
 
 export default {
   components: {
     GamingGroupForm,
+    TheBreadcrumb
   },
   data() {
     return {
@@ -52,6 +58,7 @@ export default {
         } else {
           await this.$store.dispatch('gamingGroups/addGroup', data);
         }
+        window.scrollTo({ top: 0, behavior: 'smooth' });
         this.$router.replace('/gaming-groups');
       } catch (error) {
         console.error('Error saving group:', error);

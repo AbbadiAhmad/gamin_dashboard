@@ -27,6 +27,10 @@
     </base-dialog>
     <section v-if="!isLoading">
       <base-card>
+        <the-breadcrumb :crumbs="[
+          { label: 'Gaming Groups', to: '/gaming-groups' },
+          { label: group.name }
+        ]"></the-breadcrumb>
         <div class="tabs">
           <button
             :class="{ active: activeTab === 'info' }"
@@ -51,9 +55,9 @@
         <div class="tab-content">
           <!-- Group Info Tab -->
           <div v-if="activeTab === 'info'" class="info-tab">
-            <div class="action-buttons">
-              <base-button v-if="isAdmin" mode="outline" link :to="editLink">Edit Info</base-button>
-              <base-button v-if="isAdmin" mode="flat" @click="deleteGroup">Delete Group</base-button>
+            <div class="action-buttons" v-if="adminModeEnabled">
+              <base-button mode="outline" link :to="editLink">Edit Info</base-button>
+              <base-button mode="flat" @click="deleteGroup">Delete Group</base-button>
             </div>
             <h2>{{ group.name }}</h2>
             <p class="description">{{ group.description }}</p>
@@ -62,8 +66,8 @@
           <!-- Teams Tab -->
           <div v-if="activeTab === 'teams'" class="teams-tab">
             <div class="action-buttons">
-              <base-button v-if="isAdmin" @click="showAddTeamDialog = true">Add Team to Group</base-button>
-              <base-button v-if="isAdmin" mode="outline" @click="calculateScores">Calculate Scores</base-button>
+              <base-button v-if="adminModeEnabled" @click="showAddTeamDialog = true">Add Team to Group</base-button>
+              <base-button mode="outline" @click="calculateScores">Calculate Scores</base-button>
             </div>
             <div v-if="groupTeams.length > 0">
               <ul class="teams-list">
@@ -76,7 +80,7 @@
                     <span class="score-label">Score:</span>
                     <span class="score-value">{{ team.score || 0 }}</span>
                   </div>
-                  <div class="team-actions" v-if="isAdmin">
+                  <div class="team-actions" v-if="adminModeEnabled">
                     <base-button mode="flat" @click="removeTeamFromGroup(team.id)">Remove</base-button>
                   </div>
                 </li>
@@ -87,15 +91,15 @@
 
           <!-- Games Tab -->
           <div v-if="activeTab === 'games'" class="games-tab">
-            <div class="action-buttons">
-              <base-button v-if="isAdmin" link :to="addGameLink">Add Game</base-button>
+            <div class="action-buttons" v-if="adminModeEnabled">
+              <base-button link :to="addGameLink">Add Game</base-button>
             </div>
             <div v-if="games.length > 0">
               <ul @drop="onDrop" @dragover.prevent class="games-list">
                 <li
                   v-for="(game, index) in sortedGames"
                   :key="game.id"
-                  :draggable="isAdmin"
+                  :draggable="adminModeEnabled"
                   @dragstart="onDragStart(index, $event)"
                   @dragend="onDragEnd"
                   @click="goToGame(game.id)"
@@ -112,8 +116,8 @@
                   </span>
                   <div class="game-actions" @click.stop>
                     <base-button mode="outline" link :to="`/games/${game.id}`">Evaluate</base-button>
-                    <base-button v-if="isAdmin" mode="outline" link :to="`/games/${game.id}/edit`">Edit</base-button>
-                    <base-button v-if="isAdmin" mode="flat" @click="deleteGame(game.id)">Delete</base-button>
+                    <base-button v-if="adminModeEnabled" mode="outline" link :to="`/games/${game.id}/edit`">Edit</base-button>
+                    <base-button v-if="adminModeEnabled" mode="flat" @click="deleteGame(game.id)">Delete</base-button>
                   </div>
                 </li>
               </ul>
@@ -129,8 +133,12 @@
 
 <script>
 import { API_BASE_URL } from '../../config.js';
+import TheBreadcrumb from '../../components/ui/TheBreadcrumb.vue';
 
 export default {
+  components: {
+    TheBreadcrumb
+  },
   props: ['id'],
   data() {
     return {
@@ -148,6 +156,9 @@ export default {
   computed: {
     isAdmin() {
       return this.$store.getters['auth/isAdministrator'];
+    },
+    adminModeEnabled() {
+      return this.$store.getters.adminModeEnabled;
     },
     group() {
       return this.$store.getters['gamingGroups/getGroupById'](parseInt(this.id));
@@ -613,5 +624,107 @@ export default {
 .toast-leave-to {
   opacity: 0;
   transform: translateY(-1rem);
+}
+
+/* Mobile responsive styles */
+@media (max-width: 768px) {
+  .tabs {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .tabs button {
+    flex: 1;
+    min-width: 120px;
+    font-size: 0.9rem;
+    padding: 0.75rem 1rem;
+  }
+
+  .action-buttons {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .action-buttons button {
+    width: 100%;
+  }
+
+  .game-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.875rem;
+  }
+
+  .game-info h4 {
+    font-size: 1.1rem;
+  }
+
+  .game-status {
+    align-self: flex-start;
+  }
+
+  .game-actions {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .game-actions button,
+  .game-actions a {
+    width: 100%;
+  }
+
+  .team-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .team-actions {
+    width: 100%;
+  }
+
+  .team-actions button {
+    width: 100%;
+  }
+
+  .toast-message {
+    right: 1rem;
+    left: 1rem;
+    bottom: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  h2 {
+    font-size: 1.25rem;
+  }
+
+  .tabs button {
+    font-size: 0.85rem;
+    padding: 0.65rem 0.75rem;
+    min-width: 100px;
+  }
+
+  .game-item {
+    padding: 0.75rem;
+  }
+
+  .game-info h4 {
+    font-size: 1rem;
+  }
+
+  .game-info p {
+    font-size: 0.85rem;
+  }
+
+  .points {
+    font-size: 0.85rem;
+  }
+
+  .game-status {
+    font-size: 0.7rem;
+    padding: 0.35rem 0.7rem;
+  }
 }
 </style>

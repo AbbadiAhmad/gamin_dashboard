@@ -1,6 +1,10 @@
 <template>
   <section>
     <base-card>
+      <the-breadcrumb :crumbs="[
+        { label: 'Teams', to: '/teams' },
+        { label: isEdit ? 'Edit Team' : 'Add Team' }
+      ]"></the-breadcrumb>
       <h2>{{ isEdit ? 'Edit' : 'Add' }} Team</h2>
       <team-form
         v-if="!isLoading"
@@ -15,10 +19,12 @@
 
 <script>
 import TeamForm from '../../components/teams/TeamForm.vue';
+import TheBreadcrumb from '../../components/ui/TheBreadcrumb.vue';
 
 export default {
   components: {
     TeamForm,
+    TheBreadcrumb
   },
   data() {
     return {
@@ -57,6 +63,7 @@ export default {
         } else {
           await this.$store.dispatch('teams/createTeam', data);
         }
+        window.scrollTo({ top: 0, behavior: 'smooth' });
         this.$router.replace('/teams');
       } catch (error) {
         console.error('Error saving team:', error);

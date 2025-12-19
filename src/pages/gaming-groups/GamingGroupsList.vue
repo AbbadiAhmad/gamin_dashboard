@@ -3,18 +3,12 @@
     <base-dialog :show="!!error" title="An error occurred!" @close="handleError">
       <p>{{ error }}</p>
     </base-dialog>
-    <base-dialog :show="showDeleteConfirm" title="Confirm Delete" @close="cancelDelete">
-      <p>Are you sure you want to delete this gaming group?</p>
-      <template #actions>
-        <base-button mode="flat" @click="cancelDelete">Cancel</base-button>
-        <base-button @click="confirmDelete">Delete</base-button>
-      </template>
-    </base-dialog>
     <section>
       <base-card>
+        <the-breadcrumb :crumbs="[{ label: 'Gaming Groups' }]"></the-breadcrumb>
         <div class="controls">
           <base-button mode="outline" @click="loadGroups(true)">Refresh</base-button>
-          <base-button v-if="isAdmin && !isLoading" @click="showAddForm">Add Gaming Group</base-button>
+          <base-button v-if="adminModeEnabled && !isLoading" @click="showAddForm">Add Gaming Group</base-button>
         </div>
         <div v-if="isLoading">
           <base-spinner></base-spinner>
@@ -27,8 +21,6 @@
             :name="group.name"
             :description="group.description"
             :show-in-dashboard="group.showInDashboard"
-            @edit="editGroup"
-            @delete="showDeleteDialog"
             @toggle-dashboard="handleToggleDashboard"
           ></gaming-group-item>
         </ul>
@@ -40,22 +32,25 @@
 
 <script>
 import GamingGroupItem from '../../components/gaming-groups/GamingGroupItem.vue';
+import TheBreadcrumb from '../../components/ui/TheBreadcrumb.vue';
 
 export default {
   components: {
     GamingGroupItem,
+    TheBreadcrumb
   },
   data() {
     return {
       isLoading: false,
       error: null,
-      showDeleteConfirm: false,
-      groupToDelete: null,
     };
   },
   computed: {
     isAdmin() {
       return this.$store.getters['auth/isAdministrator'];
+    },
+    adminModeEnabled() {
+      return this.$store.getters.adminModeEnabled;
     },
     gamingGroups() {
       return this.$store.getters['gamingGroups/groups'];
@@ -84,30 +79,6 @@ export default {
     },
     showAddForm() {
       this.$router.push('/gaming-groups/new');
-    },
-    editGroup(id) {
-      this.$router.push(`/gaming-groups/${id}/edit`);
-    },
-    showDeleteDialog(id) {
-      this.groupToDelete = id;
-      this.showDeleteConfirm = true;
-    },
-    cancelDelete() {
-      this.groupToDelete = null;
-      this.showDeleteConfirm = false;
-    },
-    async confirmDelete() {
-      if (!this.groupToDelete) return;
-
-      this.isLoading = true;
-      try {
-        await this.$store.dispatch('gamingGroups/deleteGroup', this.groupToDelete);
-        this.showDeleteConfirm = false;
-        this.groupToDelete = null;
-      } catch (error) {
-        this.error = error.message || 'Failed to delete gaming group!';
-      }
-      this.isLoading = false;
     },
     handleToggleDashboard() {
       // Refresh the list to show updated toggle state

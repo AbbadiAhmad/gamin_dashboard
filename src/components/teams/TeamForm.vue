@@ -131,4 +131,36 @@ textarea:focus {
   gap: 1rem;
   margin-top: 2rem;
 }
+
+@media (max-width: 768px) {
+  input[type='text'],
+  textarea {
+    padding: 0.75rem;
+    font-size: 1rem;
+  }
+
+  .actions {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .actions button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .form-control {
+    margin: 0.75rem 0;
+  }
+
+  label {
+    font-size: 0.95rem;
+  }
+
+  input[type='text'],
+  textarea {
+    padding: 0.875rem;
+  }
+}
 </style>

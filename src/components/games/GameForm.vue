@@ -101,7 +101,10 @@
     </div>
 
     <p v-if="!formIsValid">Please fix the above errors and submit again.</p>
-    <base-button>{{ isEdit ? 'Update' : 'Create' }} Game</base-button>
+    <div class="actions">
+      <base-button>{{ isEdit ? 'Update' : 'Create' }} Game</base-button>
+      <base-button type="button" mode="flat" @click="goBack">Cancel</base-button>
+    </div>
   </form>
 </template>
 
@@ -210,6 +213,14 @@ export default {
 
       this.$emit('save-data', formData);
     },
+    goBack() {
+      const groupId = this.gamingGroupId.val;
+      if (groupId) {
+        this.$router.push(`/gaming-groups/${groupId}`);
+      } else {
+        this.$router.push('/gaming-groups');
+      }
+    }
   },
 };
 </script>
@@ -294,5 +305,64 @@ select:focus {
 h3 {
   margin-top: 1.5rem;
   margin-bottom: 0.5rem;
+}
+
+.actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+@media (max-width: 768px) {
+  .form-row {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  input,
+  textarea,
+  select {
+    padding: 0.5rem;
+    font-size: 1rem;
+  }
+
+  .scoring-section {
+    padding: 0.75rem;
+  }
+
+  .scoring-item {
+    padding: 0.75rem;
+  }
+
+  .btn-remove {
+    width: 100%;
+    margin-top: 0.5rem;
+  }
+
+  .actions {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .actions button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  label {
+    font-size: 0.95rem;
+  }
+
+  input,
+  textarea,
+  select {
+    padding: 0.75rem;
+    font-size: 1rem;
+  }
+
+  h3 {
+    font-size: 1.1rem;
+  }
 }
 </style>

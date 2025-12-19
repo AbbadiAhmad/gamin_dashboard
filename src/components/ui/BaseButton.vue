@@ -42,6 +42,9 @@ a {
   border-radius: 30px;
   margin-right: 0.5rem;
   display: inline-block;
+  min-height: 44px;
+  min-width: 44px;
+  text-align: center;
 }
 
 a:hover,
@@ -69,5 +72,24 @@ button:active {
 .outline:hover,
 .outline:active {
   background-color: #edd2ff;
+}
+
+@media (max-width: 768px) {
+  button,
+  a {
+    padding: 0.875rem 1.25rem;
+    margin-right: 0.25rem;
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  button,
+  a {
+    padding: 1rem 1rem;
+    margin: 0.25rem;
+    width: auto;
+    font-size: 0.95rem;
+  }
 }
 </style>

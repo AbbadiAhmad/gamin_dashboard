@@ -63,16 +63,17 @@ export default {
 
 dialog {
   position: fixed;
-  top: 20vh;
-  left: 10%;
-  width: 80%;
+  top: 5vh;
+  left: 5%;
+  width: 90%;
+  max-height: 90vh;
   z-index: 100;
   border-radius: 12px;
   border: none;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.26);
   padding: 0;
   margin: 0;
-  overflow: hidden;
+  overflow-y: auto;
   background-color: white;
 }
 
@@ -85,17 +86,22 @@ header {
 
 header h2 {
   margin: 0;
+  font-size: 1.25rem;
 }
 
 section {
   padding: 1rem;
+  max-height: calc(90vh - 8rem);
+  overflow-y: auto;
 }
 
 menu {
   padding: 1rem;
   display: flex;
   justify-content: flex-end;
+  gap: 0.5rem;
   margin: 0;
+  flex-wrap: wrap;
 }
 
 .dialog-enter-from,
@@ -120,8 +126,46 @@ menu {
 
 @media (min-width: 768px) {
   dialog {
+    top: 20vh;
     left: calc(50% - 20rem);
     width: 40rem;
+    max-height: 70vh;
+  }
+
+  header h2 {
+    font-size: 1.5rem;
+  }
+
+  section {
+    max-height: calc(70vh - 8rem);
+  }
+}
+
+@media (max-width: 480px) {
+  dialog {
+    top: 2vh;
+    left: 2.5%;
+    width: 95%;
+    max-height: 96vh;
+    border-radius: 8px;
+  }
+
+  header {
+    padding: 0.75rem;
+  }
+
+  header h2 {
+    font-size: 1.1rem;
+  }
+
+  section {
+    padding: 0.75rem;
+    max-height: calc(96vh - 7rem);
+  }
+
+  menu {
+    padding: 0.75rem;
+    justify-content: center;
   }
 }
 </style>

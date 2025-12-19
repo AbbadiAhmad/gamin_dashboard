@@ -5,6 +5,7 @@
     </base-dialog>
     <section>
       <base-card>
+        <the-breadcrumb :crumbs="[{ label: 'Game Dashboard' }]"></the-breadcrumb>
         <h1>Games Dashboard</h1>
         <p class="subtitle">All games - click status badges to filter</p>
 
@@ -71,7 +72,12 @@
 </template>
 
 <script>
+import TheBreadcrumb from '../../components/ui/TheBreadcrumb.vue';
+
 export default {
+  components: {
+    TheBreadcrumb
+  },
   data() {
     return {
       isLoading: false,
@@ -339,5 +345,101 @@ h1 {
 .no-games p {
   font-size: 1.1rem;
   margin: 0;
+}
+
+@media (max-width: 768px) {
+  h1 {
+    font-size: 2rem;
+  }
+
+  .subtitle {
+    font-size: 1rem;
+  }
+
+  .status-filters {
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .filter-badge {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
+  }
+
+  .games-grid {
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 1rem;
+    margin-top: 1.5rem;
+  }
+
+  .game-card {
+    padding: 1.25rem;
+  }
+
+  .game-card-header h3 {
+    font-size: 1.25rem;
+  }
+
+  .game-meta {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .no-games {
+    padding: 3rem 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  h1 {
+    font-size: 1.5rem;
+  }
+
+  .subtitle {
+    font-size: 0.9rem;
+  }
+
+  .status-filters {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .filter-badge {
+    width: 100%;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+  }
+
+  .games-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .game-card {
+    padding: 1rem;
+  }
+
+  .game-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .game-card-header h3 {
+    font-size: 1.1rem;
+  }
+
+  .no-games {
+    padding: 2rem 0.5rem;
+  }
+
+  .no-games h3 {
+    font-size: 1.25rem;
+  }
+
+  .no-games p {
+    font-size: 1rem;
+  }
 }
 </style>

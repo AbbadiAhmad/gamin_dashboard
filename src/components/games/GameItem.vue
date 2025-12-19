@@ -11,8 +11,8 @@
     </div>
     <div class="actions">
       <base-button link :to="viewLink">Evaluate</base-button>
-      <base-button v-if="isAdmin" mode="outline" link :to="editLink">Edit</base-button>
-      <base-button v-if="isAdmin" mode="flat" @click="deleteGame">Delete</base-button>
+      <base-button v-if="adminModeEnabled" mode="outline" link :to="editLink">Edit</base-button>
+      <base-button v-if="adminModeEnabled" mode="flat" @click="deleteGame">Delete</base-button>
     </div>
   </li>
 </template>
@@ -40,6 +40,9 @@ export default {
   computed: {
     isAdmin() {
       return this.$store.getters['auth/userRole'] === 'administrator';
+    },
+    adminModeEnabled() {
+      return this.$store.getters.adminModeEnabled;
     },
     editLink() {
       return '/games/' + this.id + '/edit';
@@ -124,5 +127,55 @@ div {
   display: flex;
   justify-content: flex-end;
   gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+  li {
+    padding: 0.875rem;
+  }
+
+  h3 {
+    font-size: 1.25rem;
+  }
+
+  .info {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .actions {
+    gap: 0.25rem;
+  }
+}
+
+@media (max-width: 480px) {
+  li {
+    padding: 0.75rem;
+  }
+
+  h3 {
+    font-size: 1.1rem;
+  }
+
+  .description {
+    font-size: 0.9rem;
+  }
+
+  .info {
+    font-size: 0.85rem;
+  }
+
+  .actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .actions button,
+  .actions a {
+    width: 100%;
+    margin: 0.25rem 0;
+  }
 }
 </style>
