@@ -22,16 +22,16 @@ echo ""
 
 # Stop current containers
 echo "Stopping development containers..."
-docker-compose down
+docker compose down
 
 # Build and start production containers
 echo ""
 echo "Building production images..."
-docker-compose -f docker-compose.prod.yml --env-file .env.prod build
+docker compose -f docker-compose.prod.yml --env-file .env.prod build
 
 echo ""
 echo "Starting production containers..."
-docker-compose -f docker-compose.prod.yml --env-file .env.prod up -d
+docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
 
 echo ""
 echo "Waiting for services to be healthy..."
@@ -56,13 +56,13 @@ fi
 # Check container status
 echo ""
 echo "Container Status:"
-docker-compose -f docker-compose.prod.yml --env-file .env.prod ps
+docker compose -f docker-compose.prod.yml --env-file .env.prod ps
 
 echo ""
 echo "====================================="
 echo "✓ Production deployment complete!"
 echo "====================================="
 
-echo "To view logs: docker-compose -f docker-compose.prod.yml --env-file .env.prod logs -f"
-echo "To stop:      docker-compose -f docker-compose.prod.yml --env-file .env.prod down"
+echo "To view logs: docker compose -f docker-compose.prod.yml --env-file .env.prod logs -f"
+echo "To stop:      docker compose -f docker-compose.prod.yml --env-file .env.prod down"
 echo ""

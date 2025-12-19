@@ -21,7 +21,8 @@
                 <router-link to="/dashboard" @click="closeDropdown(); closeMobileMenu()">Game Dashboard</router-link>
               </li>
               <li>
-                <router-link to="/dashboard/gaming-groups" @click="closeDropdown(); closeMobileMenu()">Gaming Groups Dashboard</router-link>
+                <router-link to="/dashboard/gaming-groups" @click="closeDropdown(); closeMobileMenu()">Gaming Groups
+                  Dashboard</router-link>
               </li>
             </ul>
           </li>
@@ -30,11 +31,7 @@
           </li>
           <li v-if="isAdmin" class="admin-mode-menu-item">
             <label class="switch">
-              <input
-                type="checkbox"
-                :checked="adminModeEnabled"
-                @change="toggleAdminMode"
-              />
+              <input type="checkbox" :checked="adminModeEnabled" @change="toggleAdminMode" />
               <span class="slider"></span>
             </label>
             <span class="admin-mode-label">Admin Mode</span>
@@ -69,13 +66,7 @@
         <span v-else>▼</span>
       </button> -->
     </header>
-    <input
-      ref="fileInput"
-      type="file"
-      accept=".zip"
-      @change="handleFileUpload"
-      style="display: none"
-    />
+    <input ref="fileInput" type="file" accept=".zip" @change="handleFileUpload" style="display: none" />
     <transition name="fade">
       <div v-if="notification.show" :class="['notification', notification.type]">
         {{ notification.message }}
@@ -136,13 +127,13 @@ export default {
     toggleMobileMenu() {
       this.isMobileMenuOpen = !this.isMobileMenuOpen;
       if (this.isMobileMenuOpen) {
-        this.showDropdown = false;
+        this.showDropdown = true;
         this.showDatabaseDropdown = false;
       }
     },
     closeMobileMenu() {
       this.isMobileMenuOpen = false;
-      this.showDropdown = false;
+      this.showDropdown = true;
       this.showDatabaseDropdown = false;
     },
     toggleDropdown() {
@@ -495,11 +486,11 @@ li {
   border-radius: 50%;
 }
 
-input:checked + .slider {
+input:checked+.slider {
   background-color: #f391e3;
 }
 
-input:checked + .slider:before {
+input:checked+.slider:before {
   transform: translateX(22px);
 }
 
@@ -507,7 +498,7 @@ input:checked + .slider:before {
   background-color: #999;
 }
 
-input:checked + .slider:hover {
+input:checked+.slider:hover {
   background-color: #db6dd1;
 }
 
@@ -561,7 +552,8 @@ input:checked + .slider:hover {
   border: 2px solid #da190b;
 }
 
-.fade-enter-active, .fade-leave-active {
+.fade-enter-active,
+.fade-leave-active {
   transition: opacity 0.3s ease, transform 0.3s ease;
 }
 
