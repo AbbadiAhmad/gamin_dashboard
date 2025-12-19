@@ -73,6 +73,9 @@
         <div v-else class="no-teams">
           <p>No teams in this gaming group yet.</p>
         </div>
+
+        <!-- Child route for time-based games -->
+        <router-view @scores-updated="loadGameScores"></router-view>
       </base-card>
     </section>
     <base-spinner v-else></base-spinner>
@@ -112,10 +115,9 @@ export default {
   async created() {
     await this.loadData();
 
-    // Redirect to time-based evaluation if game type is 'time'
-    if (this.game && this.game.gameType === 'time') {
+    // Navigate to time child route if game is time-based
+    if (this.game && this.game.gameType === 'time' && !this.$route.path.endsWith('/time')) {
       this.$router.replace(`/games/${this.id}/time`);
-      return;
     }
 
     if (this.game && this.game.status === 'past' && !this.pastWarningShown) {

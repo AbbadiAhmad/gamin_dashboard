@@ -36,14 +36,20 @@ const router = createRouter({
     { path: '/gaming-groups/:id/edit', component: GamingGroupForm },
     { path: '/games', component: GamesList },
     { path: '/games/new', component: GameForm },
-    { path: '/games/:id', component: GameEvaluation, props: true },
+    {
+      path: '/games/:id',
+      component: GameEvaluation,
+      props: true,
+      children: [
+        { path: 'time', component: TimeGameEvaluation, props: true }
+      ]
+    },
     { path: '/games/:id/edit', component: GameForm },
     { path: '/teams', component: TeamsList },
     { path: '/teams/new', component: TeamForm },
     { path: '/teams/:id/edit', component: TeamForm },
     { path: '/teamboard', component: TeamBoard },
     { path: '/teamboard/:code', component: TeamBoard, props: true },
-    { path: '/games/:id/time', component: TimeGameEvaluation, props: true },
     { path: '/:notFound(.*)', component: NotFound }
   ]
 });

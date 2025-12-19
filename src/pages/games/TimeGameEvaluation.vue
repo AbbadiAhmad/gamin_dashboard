@@ -1,173 +1,154 @@
 <template>
-  <div>
+  <div class="time-game-controls" v-if="!isLoading && game">
     <base-dialog :show="!!error" title="An error occurred!" @close="handleError">
       <p>{{ error }}</p>
     </base-dialog>
 
-    <section v-if="!isLoading && game">
-      <base-card>
-        <the-breadcrumb :crumbs="[
-          { label: 'Gaming Groups', to: '/gaming-groups' },
-          { label: game.gamingGroupName || 'Group', to: `/gaming-groups/${game.gamingGroupId}` },
-          { label: game.name }
-        ]"></the-breadcrumb>
+    <!-- Time-based game settings badge -->
+    <div class="game-settings">
+      <span class="setting-badge time">Time-Based</span>
+      <span class="setting-badge">Max: {{ game.maximumPoint / 10 }}s = {{ game.maximumPoint }} pts</span>
+      <span class="setting-badge">{{ game.timingMode === 'client' ? 'Client-Trusted' : 'Server-Trusted' }}</span>
+    </div>
 
-        <div class="game-header">
-          <div class="game-info">
-            <h2>{{ game.name }}</h2>
-            <p class="description">{{ game.description }}</p>
-            <div class="game-settings">
-              <span class="setting-badge time">Time-Based</span>
-              <span class="setting-badge">Max: {{ game.maximumPoint / 10 }}s = {{ game.maximumPoint }} pts</span>
-              <span class="setting-badge">{{ game.timingMode === 'client' ? 'Client-Trusted' : 'Server-Trusted' }}</span>
-            </div>
+    <!-- Team Codes Section -->
+    <div class="teams-section">
+      <h3>Team Access Codes</h3>
+
+      <div class="teams-list">
+        <div
+          v-for="team in groupTeams"
+          :key="team.id"
+          class="team-row"
+          :class="{ selected: selectedTeams.includes(team.id) }"
+        >
+          <div class="team-checkbox">
+            <input
+              type="checkbox"
+              :id="`team-${team.id}`"
+              :checked="selectedTeams.includes(team.id)"
+              @change="toggleTeam(team.id)"
+              :disabled="getTeamCode(team.id)"
+            />
           </div>
-        </div>
 
-        <!-- Team Codes Section -->
-        <div class="teams-section">
-          <h3>Teams</h3>
+          <div class="team-name">
+            <label :for="`team-${team.id}`">{{ team.name }}</label>
+          </div>
 
-          <div class="teams-list">
-            <div
-              v-for="team in groupTeams"
-              :key="team.id"
-              class="team-row"
-              :class="{ selected: selectedTeams.includes(team.id) }"
+          <div class="team-code" :class="getCodeStatus(team.id)">
+            <span v-if="getTeamCode(team.id)">
+              {{ getCodeStatus(team.id) === 'active' ? 'conn.' : getTeamCode(team.id) }}
+            </span>
+            <span v-else class="no-code">---</span>
+          </div>
+
+          <div class="team-result" v-if="roundResults.length > 0">
+            <span v-if="getTeamResult(team.id)">
+              {{ getTeamResult(team.id).displayTime }}s = {{ getTeamResult(team.id).points }} pts
+            </span>
+          </div>
+
+          <div class="team-actions">
+            <button
+              v-if="!getTeamCode(team.id)"
+              class="action-btn generate"
+              @click="generateCode(team.id)"
             >
-              <div class="team-checkbox">
-                <input
-                  type="checkbox"
-                  :id="`team-${team.id}`"
-                  :checked="selectedTeams.includes(team.id)"
-                  @change="toggleTeam(team.id)"
-                  :disabled="getTeamCode(team.id)"
-                />
-              </div>
-
-              <div class="team-name">
-                <label :for="`team-${team.id}`">{{ team.name }}</label>
-              </div>
-
-              <div class="team-code" :class="getCodeStatus(team.id)">
-                <span v-if="getTeamCode(team.id)">
-                  {{ getCodeStatus(team.id) === 'active' ? 'conn.' : getTeamCode(team.id) }}
-                </span>
-                <span v-else class="no-code">---</span>
-              </div>
-
-              <div class="team-result" v-if="roundResults.length > 0">
-                <span v-if="getTeamResult(team.id)">
-                  {{ getTeamResult(team.id).displayTime }}s = {{ getTeamResult(team.id).points }} pts
-                </span>
-              </div>
-
-              <div class="team-actions">
-                <button
-                  v-if="!getTeamCode(team.id)"
-                  class="action-btn generate"
-                  @click="generateCode(team.id)"
-                >
-                  generate code
-                </button>
-                <button
-                  v-else
-                  class="action-btn reset"
-                  @click="resetCode(team.id)"
-                >
-                  reset code
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Bulk Actions -->
-          <div class="bulk-actions">
-            <base-button
-              mode="flat"
-              @click="generateCodesForSelected"
-              :disabled="selectedTeams.length === 0"
+              generate code
+            </button>
+            <button
+              v-else
+              class="action-btn reset"
+              @click="resetCode(team.id)"
             >
-              Generate Codes for Selected
-            </base-button>
+              reset code
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bulk Actions -->
+      <div class="bulk-actions">
+        <base-button
+          mode="flat"
+          @click="generateCodesForSelected"
+          :disabled="selectedTeams.length === 0"
+        >
+          Generate Codes for Selected
+        </base-button>
+      </div>
+    </div>
+
+    <!-- Game Controls -->
+    <div class="game-controls">
+      <div class="control-row" v-if="gameState === 'idle' || gameState === 'completed'">
+        <div class="countdown-select">
+          <label>Countdown:</label>
+          <select v-model="countdownSeconds">
+            <option :value="3">3 sec</option>
+            <option :value="5">5 sec</option>
+            <option :value="10">10 sec</option>
+          </select>
+        </div>
+
+        <base-button
+          @click="startGame"
+          :disabled="connectedTeamsCount === 0"
+        >
+          Start Game ({{ connectedTeamsCount }} teams ready)
+        </base-button>
+      </div>
+
+      <div class="control-row" v-if="gameState === 'countdown'">
+        <div class="countdown-display">{{ countdownDisplay }}</div>
+      </div>
+
+      <div class="control-row" v-if="gameState === 'running'">
+        <div class="running-display">Game in progress...</div>
+        <base-button mode="flat" @click="discardRound" v-if="showDiscardButton">
+          Discard Round
+        </base-button>
+      </div>
+
+      <div class="control-row results" v-if="gameState === 'completed' && roundResults.length > 0">
+        <h3>Round Results</h3>
+        <div class="results-list">
+          <div
+            v-for="(result, index) in sortedResults"
+            :key="result.teamId"
+            class="result-row"
+            :class="{ timeout: result.timedOut }"
+          >
+            <span class="rank">{{ index + 1 }}</span>
+            <span class="name">{{ result.teamName }}</span>
+            <span class="time">{{ result.timedOut ? 'TIMEOUT' : result.displayTime + 's' }}</span>
+            <span class="points">{{ result.points }} pts</span>
           </div>
         </div>
 
-        <!-- Game Controls -->
-        <div class="game-controls">
-          <div class="control-row" v-if="gameState === 'idle' || gameState === 'completed'">
-            <div class="countdown-select">
-              <label>Countdown:</label>
-              <select v-model="countdownSeconds">
-                <option :value="3">3 sec</option>
-                <option :value="5">5 sec</option>
-                <option :value="10">10 sec</option>
-              </select>
-            </div>
-
-            <base-button
-              @click="startGame"
-              :disabled="connectedTeamsCount === 0"
-            >
-              Start Game ({{ connectedTeamsCount }} teams ready)
-            </base-button>
-          </div>
-
-          <div class="control-row" v-if="gameState === 'countdown'">
-            <div class="countdown-display">{{ countdownDisplay }}</div>
-          </div>
-
-          <div class="control-row" v-if="gameState === 'running'">
-            <div class="running-display">Game in progress...</div>
-            <base-button mode="flat" @click="discardRound" v-if="showDiscardButton">
-              Discard Round
-            </base-button>
-          </div>
-
-          <div class="control-row results" v-if="gameState === 'completed' && roundResults.length > 0">
-            <h3>Round Results</h3>
-            <div class="results-list">
-              <div
-                v-for="(result, index) in sortedResults"
-                :key="result.teamId"
-                class="result-row"
-                :class="{ timeout: result.timedOut }"
-              >
-                <span class="rank">{{ index + 1 }}</span>
-                <span class="name">{{ result.teamName }}</span>
-                <span class="time">{{ result.timedOut ? 'TIMEOUT' : result.displayTime + 's' }}</span>
-                <span class="points">{{ result.points }} pts</span>
-              </div>
-            </div>
-
-            <div class="confirm-actions">
-              <base-button @click="confirmResults">Confirm & Save</base-button>
-              <base-button mode="flat" @click="discardRound">Discard</base-button>
-            </div>
-          </div>
+        <div class="confirm-actions">
+          <base-button @click="confirmResults">Confirm & Save</base-button>
+          <base-button mode="flat" @click="discardRound">Discard</base-button>
         </div>
+      </div>
+    </div>
 
-        <!-- Connection Status -->
-        <div class="connection-status" :class="{ connected: socketConnected }">
-          {{ socketConnected ? 'Connected' : 'Disconnected' }}
-        </div>
-      </base-card>
-    </section>
-
-    <base-spinner v-else></base-spinner>
+    <!-- Connection Status -->
+    <div class="connection-status" :class="{ connected: socketConnected }">
+      {{ socketConnected ? 'Connected' : 'Disconnected' }}
+    </div>
   </div>
+  <base-spinner v-else-if="isLoading"></base-spinner>
 </template>
 
 <script>
 import { io } from 'socket.io-client';
 import { API_BASE_URL, SOCKET_URL } from '../../config.js';
-import TheBreadcrumb from '../../components/ui/TheBreadcrumb.vue';
 
 export default {
-  components: {
-    TheBreadcrumb
-  },
   props: ['id'],
+  emits: ['scores-updated'],
   data() {
     return {
       isLoading: false,
@@ -364,6 +345,8 @@ export default {
         console.log('Results confirmed');
         this.gameState = 'idle';
         this.roundResults = [];
+        // Notify parent to refresh scores
+        this.$emit('scores-updated');
       });
 
       this.socket.on('game:discarded', () => {
@@ -565,20 +548,10 @@ export default {
 </script>
 
 <style scoped>
-.game-header {
-  margin-bottom: 2rem;
-  padding-bottom: 1.5rem;
-  border-bottom: 2px solid #e0e0e0;
-}
-
-.game-info h2 {
-  font-size: 1.75rem;
-  margin: 0 0 0.5rem 0;
-}
-
-.description {
-  color: #666;
-  margin: 0 0 1rem 0;
+.time-game-controls {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 2px solid #e0e0e0;
 }
 
 .game-settings {
