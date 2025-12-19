@@ -1780,6 +1780,13 @@ io.on('connection', (socket) => {
       const now = Date.now();
       const goTime = now + (countdown * 1000);
 
+      // Clear any existing timeouts from previous round
+      const existingState = activeGames.get(parseInt(gameId));
+      if (existingState) {
+        if (existingState.goTimeout) clearTimeout(existingState.goTimeout);
+        if (existingState.endTimeout) clearTimeout(existingState.endTimeout);
+      }
+
       // Get game details
       const [games] = await pool.query(
         'SELECT maximum_point, timing_mode FROM games WHERE id = ?',
@@ -1823,7 +1830,9 @@ io.on('connection', (socket) => {
         maxPoints: game.maximum_point,
         startedAt: now,
         results: new Map(),
-        connectedTeams: connectedTeams.map(t => t.team_id)
+        connectedTeams: connectedTeams.map(t => t.team_id),
+        goTimeout: null,
+        endTimeout: null
       };
       activeGames.set(parseInt(gameId), gameState);
 
@@ -1836,7 +1845,7 @@ io.on('connection', (socket) => {
       });
 
       // Schedule GO event
-      setTimeout(() => {
+      gameState.goTimeout = setTimeout(() => {
         const state = activeGames.get(parseInt(gameId));
         if (state && state.status === 'countdown') {
           state.status = 'running';
@@ -1849,11 +1858,11 @@ io.on('connection', (socket) => {
       }, countdown * 1000);
 
       // Schedule timeout
-      setTimeout(() => {
+      gameState.endTimeout = setTimeout(() => {
         endRound(gameId);
       }, (countdown * 1000) + maxTimeMs + 500);
 
-      console.log(`Game ${gameId} started with ${countdown}s countdown`);
+      console.log(`Game ${gameId} started with ${countdown}s countdown, maxTime: ${maxTimeMs}ms`);
     } catch (error) {
       console.error('Error in game:start:', error);
     }
@@ -1943,6 +1952,9 @@ io.on('connection', (socket) => {
     try {
       const gameState = activeGames.get(parseInt(gameId));
       if (gameState) {
+        // Clear any pending timeouts
+        if (gameState.goTimeout) clearTimeout(gameState.goTimeout);
+        if (gameState.endTimeout) clearTimeout(gameState.endTimeout);
         gameState.status = 'discarded';
       }
 
@@ -2084,6 +2096,10 @@ async function endRound(gameId) {
   if (!gameState || gameState.status === 'completed' || gameState.status === 'discarded') {
     return;
   }
+
+  // Clear any pending timeouts
+  if (gameState.goTimeout) clearTimeout(gameState.goTimeout);
+  if (gameState.endTimeout) clearTimeout(gameState.endTimeout);
 
   gameState.status = 'completed';
 
