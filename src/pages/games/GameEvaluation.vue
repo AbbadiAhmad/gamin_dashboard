@@ -74,8 +74,18 @@
           <p>No teams in this gaming group yet.</p>
         </div>
 
-        <!-- Child route for time-based games -->
-        <router-view @scores-updated="loadGameScores"></router-view>
+        <!-- Child route for time-based games (only show when game is running) -->
+        <router-view v-if="game.status === 'running'" @scores-updated="loadGameScores"></router-view>
+
+        <!-- Message for time-based games that are not running -->
+        <div v-else-if="game.gameType === 'time'" class="time-game-status-info">
+          <p v-if="game.status === 'coming'">
+            Start the game to enable time-based evaluation controls.
+          </p>
+          <p v-else-if="game.status === 'past'">
+            This time-based game has ended. Scores are finalized above.
+          </p>
+        </div>
       </base-card>
     </section>
     <base-spinner v-else></base-spinner>
@@ -436,6 +446,21 @@ export default {
   padding: 3rem;
   color: #666;
   font-style: italic;
+}
+
+.time-game-status-info {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background: #f5f5f5;
+  border-radius: 8px;
+  text-align: center;
+  color: #666;
+  border: 1px dashed #ccc;
+}
+
+.time-game-status-info p {
+  margin: 0;
+  font-size: 1rem;
 }
 
 @media (max-width: 768px) {

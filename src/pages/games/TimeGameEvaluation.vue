@@ -113,14 +113,17 @@
       </div>
 
       <div class="control-row" v-if="gameState === 'running'">
-        <div class="running-display">Game in progress...</div>
+        <div class="running-display">
+          Game in progress... ({{ roundResults.length }}/{{ connectedTeamsCount }} pressed)
+        </div>
         <base-button mode="flat" @click="discardRound" v-if="showDiscardButton">
           Discard Round
         </base-button>
       </div>
 
-      <div class="control-row results" v-if="gameState === 'completed' && roundResults.length > 0">
-        <h3>Round Results</h3>
+      <!-- Show results in real-time (during running or completed) -->
+      <div class="control-row results" v-if="(gameState === 'running' || gameState === 'completed') && roundResults.length > 0">
+        <h3>{{ gameState === 'completed' ? 'Round Results' : 'Live Results' }}</h3>
         <div class="results-list">
           <div
             v-for="(result, index) in sortedResults"
@@ -136,7 +139,9 @@
         </div>
 
         <div class="confirm-actions">
-          <base-button @click="confirmResults">Confirm & Save</base-button>
+          <base-button @click="confirmResults" :disabled="roundResults.length === 0">
+            Confirm & Save ({{ roundResults.length }})
+          </base-button>
           <base-button mode="flat" @click="discardRound">Discard</base-button>
         </div>
       </div>

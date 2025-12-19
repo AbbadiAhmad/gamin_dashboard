@@ -1984,10 +1984,19 @@ io.on('connection', (socket) => {
 
     try {
       const gameState = activeGames.get(parseInt(gameId));
-      if (!gameState || gameState.status !== 'completed') {
-        socket.emit('error', { message: 'No completed round to confirm' });
+      if (!gameState || (gameState.status !== 'completed' && gameState.status !== 'running')) {
+        socket.emit('error', { message: 'No active round to confirm' });
         return;
       }
+
+      if (gameState.results.size === 0) {
+        socket.emit('error', { message: 'No results to confirm yet' });
+        return;
+      }
+
+      // Clear timeouts if still running
+      if (gameState.goTimeout) clearTimeout(gameState.goTimeout);
+      if (gameState.endTimeout) clearTimeout(gameState.endTimeout);
 
       // Get game details
       const [games] = await pool.query(
