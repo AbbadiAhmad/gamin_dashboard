@@ -71,10 +71,11 @@
 
     <div class="form-control">
       <label for="gameType">Game Type</label>
-      <select id="gameType" v-model="gameType.val">
+      <select id="gameType" v-model="gameType.val" :disabled="isEdit">
         <option value="points">Points-Based (Manual Scoring)</option>
         <option value="time">Time-Based (Reaction Game)</option>
       </select>
+      <p v-if="isEdit" class="info-text">Game type cannot be changed after creation</p>
     </div>
 
     <!-- Time-based game options -->
@@ -322,6 +323,19 @@ select:focus {
 .invalid textarea,
 .invalid select {
   border: 1px solid red;
+}
+
+.info-text {
+  font-size: 0.85rem;
+  color: #666;
+  margin-top: 0.25rem;
+  font-style: italic;
+}
+
+select:disabled {
+  background-color: #f5f5f5;
+  cursor: not-allowed;
+  opacity: 0.7;
 }
 
 .scoring-section {

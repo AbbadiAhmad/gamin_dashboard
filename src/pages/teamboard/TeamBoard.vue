@@ -200,7 +200,7 @@ export default {
         this.connectSocket();
       } catch (error) {
         console.error('Validation error:', error);
-        this.error = 'Failed to validate code';
+        this.error = `Failed to validate code. API: ${API_BASE_URL}. Error: ${error.message}`;
       }
     },
 
@@ -319,7 +319,7 @@ export default {
       });
     },
 
-    startCountdown(startsAt, serverTime) {
+    startCountdown(startsAt) {
       if (this.countdownInterval) {
         clearInterval(this.countdownInterval);
       }
