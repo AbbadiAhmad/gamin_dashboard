@@ -92,6 +92,8 @@
 </template>
 
 <script>
+import { API_BASE_URL } from '../../config.js';
+
 export default {
   props: ['id'],
   data() {
@@ -205,8 +207,8 @@ export default {
 
         // Fetch game status and scores in parallel
         const [gameResponse, scoresResponse] = await Promise.all([
-          fetch(`http://localhost:3000/games/${this.id}`, { headers }),
-          fetch(`http://localhost:3000/games/${this.id}/scores`, { headers })
+          fetch(`${API_BASE_URL}/games/${this.id}`, { headers }),
+          fetch(`${API_BASE_URL}/games/${this.id}/scores`, { headers })
         ]);
 
         if (gameResponse.ok && scoresResponse.ok) {
@@ -258,7 +260,7 @@ export default {
           headers['Authorization'] = `Bearer ${token}`;
         }
 
-        const response = await fetch(`http://localhost:3000/games/${this.id}/scores`, {
+        const response = await fetch(`${API_BASE_URL}/games/${this.id}/scores`, {
           headers
         });
 

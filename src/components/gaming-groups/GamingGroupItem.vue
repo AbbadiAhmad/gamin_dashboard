@@ -28,6 +28,8 @@
 </template>
 
 <script>
+import { API_BASE_URL } from '../../config.js';
+
 export default {
   props: ['id', 'name', 'description', 'showInDashboard'],
   computed: {
@@ -49,7 +51,7 @@ export default {
       const newValue = event.target.checked;
       try {
         const token = localStorage.getItem('token');
-        const response = await fetch(`http://localhost:3000/gaming-groups/${this.id}`, {
+        const response = await fetch(`${API_BASE_URL}/gaming-groups/${this.id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',

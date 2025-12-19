@@ -128,6 +128,8 @@
 </template>
 
 <script>
+import { API_BASE_URL } from '../../config.js';
+
 export default {
   props: ['id'],
   data() {
@@ -267,7 +269,7 @@ export default {
     },
     async calculateScores() {
       try {
-        const response = await fetch(`http://localhost:3000/gaming-groups/${this.id}/calculate-scores`, {
+        const response = await fetch(`${API_BASE_URL}/gaming-groups/${this.id}/calculate-scores`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -288,7 +290,7 @@ export default {
     },
     async calculateScoresQuietly() {
       try {
-        const response = await fetch(`http://localhost:3000/gaming-groups/${this.id}/calculate-scores`, {
+        const response = await fetch(`${API_BASE_URL}/gaming-groups/${this.id}/calculate-scores`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

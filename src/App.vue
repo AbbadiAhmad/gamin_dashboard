@@ -9,6 +9,7 @@
 
 <script>
 import TheHeader from './components/layout/TheHeader.vue';
+import { API_BASE_URL } from './config.js';
 
 export default {
   components: {
@@ -20,7 +21,7 @@ export default {
 
     // Check if setup is complete
     try {
-      const response = await fetch('http://localhost:3000/setup/status');
+      const response = await fetch(`${API_BASE_URL}/setup/status`);
       const data = await response.json();
 
       if (!data.isSetupComplete) {

@@ -1,4 +1,6 @@
-const API_URL = 'http://localhost:3000';
+import { API_BASE_URL } from '../../../config.js';
+
+const API_URL = API_BASE_URL;
 
 export default {
   async loadGroups(context, payload) {

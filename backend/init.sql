@@ -1,8 +1,11 @@
--- Fix authentication method for MariaDB client compatibility
--- The MySQL Docker container auto-creates the user with caching_sha2_password
--- We need to change it to mysql_native_password for MariaDB client compatibility
-ALTER USER 'coaches_user'@'%' IDENTIFIED WITH mysql_native_password BY 'coaches_pass';
-FLUSH PRIVILEGES;
+-- Database initialization script
+-- Creates all necessary tables and indexes for the gaming dashboard
+
+-- Note about MySQL authentication:
+-- The database user is auto-created by Docker with caching_sha2_password authentication
+-- For MariaDB client compatibility (used in backup/restore feature), the authentication
+-- method needs to be changed to mysql_native_password. This is handled automatically
+-- by the backend server on first connection.
 
 -- Create coaches table
 CREATE TABLE IF NOT EXISTS coaches (

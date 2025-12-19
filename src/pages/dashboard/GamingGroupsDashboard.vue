@@ -58,6 +58,8 @@
 </template>
 
 <script>
+import { API_BASE_URL } from '../../config.js';
+
 export default {
   data() {
     return {
@@ -101,7 +103,7 @@ export default {
       }
 
       try {
-        const response = await fetch('http://localhost:3000/dashboard/gaming-groups');
+        const response = await fetch(`${API_BASE_URL}/dashboard/gaming-groups`);
 
         if (!response.ok) {
           throw new Error('Failed to load dashboard data');

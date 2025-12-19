@@ -2,12 +2,14 @@ name: game
 services:
   mysql:
     image: mysql:8.0
-    container_name: vue-coaches-db
+    container_name: vue-game_dashboard-db
+    env_file:
+      - .env.prod
     environment:
-      MYSQL_ROOT_PASSWORD: rootpassword
-      MYSQL_DATABASE: coaches_db
-      MYSQL_USER: coaches_user
-      MYSQL_PASSWORD: coaches_pass
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     expose:
       - "3306"
     volumes:
@@ -18,13 +20,16 @@ services:
 
   backend:
     build: ./backend
-    container_name: vue-coaches-backend
+    container_name: vue-game_dashboard-backend
+    env_file:
+      - .env.prod
     environment:
-      DB_HOST: mysql
-      DB_USER: coaches_user
-      DB_PASSWORD: coaches_pass
-      DB_NAME: coaches_db
-      PORT: 3000
+      DB_HOST: ${DB_HOST}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      PORT: ${PORT}
+      JWT_SECRET: ${JWT_SECRET}
     ports:
       - "3000:3000"
     depends_on:
@@ -38,9 +43,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.prod
-    container_name: vue-coaches-frontend
+      args:
+        - VUE_APP_API_URL=${VUE_APP_API_URL}
+    container_name: vue-game_dashboard-frontend
     ports:
-      - "8080:80"
+      - "8081:80"
     depends_on:
       - backend
 

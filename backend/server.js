@@ -1,3 +1,6 @@
+// Load environment variables from .env file
+require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
@@ -11,8 +14,20 @@ const fs = require('fs');
 const path = require('path');
 
 const app = express();
+
+// Validate required environment variables
+const requiredEnvVars = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME', 'JWT_SECRET'];
+const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
+
+if (missingEnvVars.length > 0) {
+  console.error('ERROR: Missing required environment variables:', missingEnvVars.join(', '));
+  console.error('Please create a .env file in the backend directory with the required variables.');
+  console.error('See .env.example for reference.');
+  process.exit(1);
+}
+
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES_IN = '2h'; // Token expires in 2 hours
 
 // Middleware
@@ -21,13 +36,38 @@ app.use(bodyParser.json());
 
 // Database connection pool
 const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'coaches_user',
-  password: process.env.DB_PASSWORD || 'coaches_pass',
-  database: process.env.DB_NAME || 'coaches_db',
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0
+});
+
+// Fix MySQL authentication method on startup (for MariaDB client compatibility)
+async function fixMySQLAuthentication() {
+  const dbUser = process.env.DB_USER;
+  const dbPassword = process.env.DB_PASSWORD;
+
+  try {
+    // Try to alter the user to use mysql_native_password
+    await pool.query(
+      `ALTER USER ?@'%' IDENTIFIED WITH mysql_native_password BY ?`,
+      [dbUser, dbPassword]
+    );
+    console.log('✓ MySQL authentication method fixed for MariaDB compatibility');
+  } catch (error) {
+    // Ignore errors - user might already be configured or we don't have permission
+    if (error.code !== 'ER_CANNOT_USER') {
+      console.log('Note: Could not alter MySQL authentication (this is normal if already configured)');
+    }
+  }
+}
+
+// Call authentication fix on startup
+fixMySQLAuthentication().catch(err => {
+  console.log('MySQL authentication check skipped:', err.message);
 });
 
 // Health check endpoint

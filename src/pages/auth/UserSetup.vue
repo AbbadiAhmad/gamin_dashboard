@@ -43,6 +43,8 @@
 </template>
 
 <script>
+import { API_BASE_URL } from '../../config.js';
+
 export default {
   data() {
     return {
@@ -97,7 +99,7 @@ export default {
       this.errorMessage = null;
 
       try {
-        const response = await fetch('http://localhost:3000/setup/complete', {
+        const response = await fetch(`${API_BASE_URL}/setup/complete`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'

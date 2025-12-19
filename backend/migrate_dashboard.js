@@ -1,12 +1,22 @@
 require('dotenv').config();
 const mysql = require('mysql2/promise');
 
+// Validate required environment variables
+const requiredEnvVars = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME'];
+const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
+
+if (missingEnvVars.length > 0) {
+  console.error('ERROR: Missing required environment variables:', missingEnvVars.join(', '));
+  console.error('Please create a .env file in the backend directory.');
+  process.exit(1);
+}
+
 async function runMigration() {
   const connection = await mysql.createConnection({
-    host: process.env.DB_HOST || 'localhost',
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'gaming_dashboard'
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME
   });
 
   try {
@@ -19,7 +29,7 @@ async function runMigration() {
       WHERE TABLE_SCHEMA = ?
       AND TABLE_NAME = 'gaming_groups'
       AND COLUMN_NAME = 'show_in_dashboard'
-    `, [process.env.DB_NAME || 'gaming_dashboard']);
+    `, [process.env.DB_NAME]);
 
     if (columns.length === 0) {
       console.log('Adding show_in_dashboard column...');

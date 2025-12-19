@@ -75,6 +75,8 @@
 </template>
 
 <script>
+import { API_BASE_URL } from '../../config.js';
+
 export default {
   props: ['id'],
   data() {
@@ -142,7 +144,7 @@ export default {
     async loadGameScores() {
       try {
         const token = localStorage.getItem('token');
-        const response = await fetch(`http://localhost:3000/games/${this.id}/scores`, {
+        const response = await fetch(`${API_BASE_URL}/games/${this.id}/scores`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -171,7 +173,7 @@ export default {
 
       try {
         const token = localStorage.getItem('token');
-        const response = await fetch(`http://localhost:3000/games/${this.id}/scores`, {
+        const response = await fetch(`${API_BASE_URL}/games/${this.id}/scores`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -214,7 +216,7 @@ export default {
     async confirmStatusChange() {
       try {
         const token = localStorage.getItem('token');
-        const response = await fetch(`http://localhost:3000/games/${this.id}/status`, {
+        const response = await fetch(`${API_BASE_URL}/games/${this.id}/status`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
