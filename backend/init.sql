@@ -2,10 +2,10 @@
 -- Creates all necessary tables and indexes for the gaming dashboard
 
 -- Note about MySQL authentication:
--- The database user is auto-created by Docker with caching_sha2_password authentication
--- For MariaDB client compatibility (used in backup/restore feature), the authentication
--- method needs to be changed to mysql_native_password. This is handled automatically
--- by the backend server on first connection.
+-- For MariaDB client compatibility (used in backup/restore feature), MySQL is configured
+-- to use mysql_native_password authentication by default via the docker-compose.yml command:
+-- command: --default-authentication-plugin=mysql_native_password
+-- This ensures all users created by Docker (from MYSQL_USER env var) use the compatible authentication method.
 
 -- Create coaches table
 CREATE TABLE IF NOT EXISTS coaches (

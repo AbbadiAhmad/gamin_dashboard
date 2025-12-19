@@ -5,6 +5,7 @@ services:
   mysql:
     image: mysql:8.0
     container_name: vue-game_dashboard-db
+    command: --default-authentication-plugin=mysql_native_password
     env_file:
       - .env
     environment:
