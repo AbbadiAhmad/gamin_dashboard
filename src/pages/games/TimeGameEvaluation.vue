@@ -28,7 +28,6 @@
               :id="`team-${team.id}`"
               :checked="selectedTeams.includes(team.id)"
               @change="toggleTeam(team.id)"
-              :disabled="getTeamCode(team.id)"
             />
           </div>
 
@@ -73,10 +72,19 @@
         <base-button
           mode="flat"
           @click="generateCodesForSelected"
-          :disabled="selectedTeams.length === 0"
+          :disabled="selectedTeamsWithoutCodes.length === 0"
         >
-          Generate Codes for Selected
+          Generate Codes for Selected ({{ selectedTeamsWithoutCodes.length }})
         </base-button>
+      </div>
+
+      <!-- Teamboard Access Link -->
+      <div class="teamboard-link">
+        <span class="link-label">Team Access URL:</span>
+        <code class="link-url">{{ teamboardUrl }}</code>
+        <button class="copy-btn" @click="copyTeamboardUrl" title="Copy to clipboard">
+          {{ copied ? 'Copied!' : 'Copy' }}
+        </button>
       </div>
     </div>
 
@@ -165,7 +173,8 @@ export default {
       countdownInterval: null,
       roundResults: [],
       showDiscardButton: false,
-      discardTimeout: null
+      discardTimeout: null,
+      copied: false
     };
   },
   computed: {
@@ -174,6 +183,12 @@ export default {
     },
     sortedResults() {
       return [...this.roundResults].sort((a, b) => a.reactionTimeMs - b.reactionTimeMs);
+    },
+    selectedTeamsWithoutCodes() {
+      return this.selectedTeams.filter(tid => !this.getTeamCode(tid));
+    },
+    teamboardUrl() {
+      return `${window.location.origin}/teamboard`;
     }
   },
   async created() {
@@ -542,6 +557,18 @@ export default {
 
     handleError() {
       this.error = null;
+    },
+
+    async copyTeamboardUrl() {
+      try {
+        await navigator.clipboard.writeText(this.teamboardUrl);
+        this.copied = true;
+        setTimeout(() => {
+          this.copied = false;
+        }, 2000);
+      } catch (err) {
+        console.error('Failed to copy:', err);
+      }
     }
   }
 };
@@ -697,6 +724,50 @@ export default {
   margin-top: 1rem;
   display: flex;
   gap: 1rem;
+}
+
+/* Teamboard Link */
+.teamboard-link {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background: #f5f5f5;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.link-label {
+  font-weight: 500;
+  color: #666;
+}
+
+.link-url {
+  background: white;
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+  font-family: monospace;
+  font-size: 0.95rem;
+  color: #3d008d;
+  flex: 1;
+  min-width: 200px;
+}
+
+.copy-btn {
+  padding: 0.5rem 1rem;
+  background: #3d008d;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background-color 0.2s;
+}
+
+.copy-btn:hover {
+  background: #5c00b8;
 }
 
 /* Game Controls */
