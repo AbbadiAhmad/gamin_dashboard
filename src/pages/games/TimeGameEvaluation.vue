@@ -111,8 +111,8 @@
           </select>
         </div>
 
-        <base-button @click="startGame" :disabled="connectedTeamsCount === 0">
-          Start Game ({{ connectedTeamsCount }} teams ready)
+        <base-button @click="startGame" :disabled="readyTeamsCount === 0">
+          Start Game ({{ readyTeamsCount }} teams ready)
         </base-button>
       </div>
 
@@ -140,7 +140,7 @@
               step="0.1"
               min="0"
               :max="game.maximumPoint / 10"
-              v-model="manualTimeInput[code.teamId] ? manualTimeInput[code.teamId].time : ''"
+              :value="manualTimeInput[code.teamId] ? manualTimeInput[code.teamId].time : ''"
               @input="e => { if(!manualTimeInput[code.teamId]) manualTimeInput[code.teamId] = { time: '', show: true }; manualTimeInput[code.teamId].time = e.target.value; }"
               placeholder="Time (s)"
               class="time-input"
@@ -250,6 +250,12 @@ export default {
     },
     selectedTeamsCount() {
       return this.teamCodes.filter(c => c.isSelected).length;
+    },
+    readyTeamsCount() {
+      // Count selected teams that are either connected OR offline-allowed
+      return this.teamCodes.filter(c =>
+        c.isSelected && (c.status === 'active' || c.offlineAllowed)
+      ).length;
     },
     sortedResults() {
       return [...this.roundResults].sort((a, b) => a.reactionTimeMs - b.reactionTimeMs);
@@ -760,7 +766,7 @@ export default {
     },
 
     startGame() {
-      if (this.connectedTeamsCount === 0) return;
+      if (this.readyTeamsCount === 0) return;
 
       this.roundResults = [];
       this.confirmedTeamIds = new Set();

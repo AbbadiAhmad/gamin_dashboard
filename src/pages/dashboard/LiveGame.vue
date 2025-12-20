@@ -86,6 +86,9 @@
           <p>No teams have scores yet.</p>
         </div>
       </div>
+
+      <!-- Child route for TimeGameDashboard -->
+      <router-view :id="id" @scores-updated="refreshData"></router-view>
     </section>
     <base-spinner v-if="isLoading && !game"></base-spinner>
   </div>

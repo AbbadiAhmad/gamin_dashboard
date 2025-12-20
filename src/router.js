@@ -19,6 +19,7 @@ const TeamsList = () => import('./pages/teams/TeamsList.vue');
 const TeamForm = () => import('./pages/teams/TeamForm.vue');
 const TeamBoard = () => import('./pages/teamboard/TeamBoard.vue');
 const TimeGameDashboard = () => import('./pages/dashboard/TimeGameDashboard.vue');
+const AudienceDashboard = () => import('./pages/audience/AudienceDashboard.vue');
 const NotFound = () => import('./pages/NotFound.vue');
 
 
@@ -28,9 +29,14 @@ const router = createRouter({
     { path: '/', redirect: '/dashboard/gaming-groups' },
     { path: '/dashboard', component: GameDashboard },
     { path: '/dashboard/gaming-groups', component: GamingGroupsDashboard },
-    { path: '/dashboard/live/:id', component: LiveGame, props: true },
-    { path: '/dashboard/time-game', component: TimeGameDashboard },
-    { path: '/dashboard/time-game/:id', component: TimeGameDashboard, props: true },
+    {
+      path: '/dashboard/live/:id',
+      component: LiveGame,
+      props: true,
+      children: [
+        { path: 'time', component: TimeGameDashboard, props: true }
+      ]
+    },
     { path: '/auth', component: UserAuth },
     { path: '/setup', component: UserSetup },
     { path: '/gaming-groups', component: GamingGroupsList },
@@ -53,7 +59,8 @@ const router = createRouter({
     { path: '/teams/:id/edit', component: TeamForm },
     { path: '/teamboard', component: TeamBoard },
     { path: '/teamboard/:code', component: TeamBoard, props: true },
-
+    { path: '/audience', component: AudienceDashboard },
+    { path: '/audience/:id', component: AudienceDashboard, props: true },
     { path: '/:notFound(.*)', component: NotFound }
   ]
 });
