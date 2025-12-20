@@ -121,28 +121,40 @@
         </base-button>
       </div>
 
-      <!-- Show results in real-time (during running or completed) -->
-      <div class="control-row results" v-if="(gameState === 'running' || gameState === 'completed') && roundResults.length > 0">
-        <h3>{{ gameState === 'completed' ? 'Round Results' : 'Live Results' }}</h3>
+      <!-- Show results in real-time (always visible when there are results) -->
+      <div class="control-row results" v-if="roundResults.length > 0">
+        <h3>
+          {{ gameState === 'running' ? 'Live Results' : 'Round Results' }}
+          <span v-if="confirmedTeamIds.size > 0" class="confirmed-badge">
+            {{ confirmedTeamIds.size }} saved
+          </span>
+        </h3>
         <div class="results-list">
           <div
             v-for="(result, index) in sortedResults"
             :key="result.teamId"
             class="result-row"
-            :class="{ timeout: result.timedOut }"
+            :class="{
+              timeout: result.timedOut,
+              confirmed: isResultConfirmed(result.teamId),
+              unconfirmed: !isResultConfirmed(result.teamId)
+            }"
           >
             <span class="rank">{{ index + 1 }}</span>
             <span class="name">{{ result.teamName }}</span>
             <span class="time">{{ result.timedOut ? 'TIMEOUT' : result.displayTime + 's' }}</span>
             <span class="points">{{ result.points }} pts</span>
+            <span class="status-icon" :title="isResultConfirmed(result.teamId) ? 'Saved' : 'Not saved'">
+              {{ isResultConfirmed(result.teamId) ? '✓' : '○' }}
+            </span>
           </div>
         </div>
 
         <div class="confirm-actions">
-          <base-button @click="confirmResults" :disabled="roundResults.length === 0">
-            Confirm & Save ({{ roundResults.length }})
+          <base-button @click="confirmResults" :disabled="!hasUnconfirmedResults">
+            {{ hasUnconfirmedResults ? `Save New Results (${unconfirmedCount})` : 'All Saved' }}
           </base-button>
-          <base-button mode="flat" @click="discardRound">Discard</base-button>
+          <base-button mode="flat" @click="discardRound">Discard All</base-button>
         </div>
       </div>
     </div>
@@ -177,6 +189,7 @@ export default {
       countdownDisplay: '',
       countdownInterval: null,
       roundResults: [],
+      confirmedTeamIds: new Set(), // Track which teams have been confirmed
       showDiscardButton: false,
       discardTimeout: null,
       copied: false
@@ -194,6 +207,12 @@ export default {
     },
     teamboardUrl() {
       return `${window.location.origin}/teamboard`;
+    },
+    unconfirmedCount() {
+      return this.roundResults.filter(r => !this.confirmedTeamIds.has(r.teamId)).length;
+    },
+    hasUnconfirmedResults() {
+      return this.unconfirmedCount > 0;
     }
   },
   async created() {
@@ -361,10 +380,12 @@ export default {
         this.showDiscardButton = false;
       });
 
-      this.socket.on('game:confirmed', () => {
-        console.log('Results confirmed');
-        this.gameState = 'idle';
-        this.roundResults = [];
+      this.socket.on('game:confirmed', (data) => {
+        console.log('Results confirmed', data);
+        // Mark all current results as confirmed (keep results visible)
+        this.roundResults.forEach(r => {
+          this.confirmedTeamIds.add(r.teamId);
+        });
         // Notify parent to refresh scores
         this.$emit('scores-updated');
       });
@@ -373,6 +394,7 @@ export default {
         console.log('Round discarded');
         this.gameState = 'idle';
         this.roundResults = [];
+        this.confirmedTeamIds = new Set();
         this.showDiscardButton = false;
       });
 
@@ -540,6 +562,7 @@ export default {
       if (this.connectedTeamsCount === 0) return;
 
       this.roundResults = [];
+      this.confirmedTeamIds = new Set();
       this.showDiscardButton = false;
 
       this.socket.emit('game:start', {
@@ -562,6 +585,10 @@ export default {
 
     handleError() {
       this.error = null;
+    },
+
+    isResultConfirmed(teamId) {
+      return this.confirmedTeamIds.has(teamId);
     },
 
     async copyTeamboardUrl() {
@@ -839,6 +866,40 @@ export default {
 
 .result-row.timeout {
   opacity: 0.6;
+}
+
+.result-row.confirmed {
+  background: #e8f5e9;
+  border-color: #a5d6a7;
+}
+
+.result-row.unconfirmed {
+  background: #fff8e1;
+  border-color: #ffe082;
+}
+
+.status-icon {
+  font-size: 1.2rem;
+  min-width: 24px;
+  text-align: center;
+}
+
+.result-row.confirmed .status-icon {
+  color: #28a745;
+}
+
+.result-row.unconfirmed .status-icon {
+  color: #ffa000;
+}
+
+.confirmed-badge {
+  font-size: 0.8rem;
+  background: #28a745;
+  color: white;
+  padding: 0.2rem 0.5rem;
+  border-radius: 12px;
+  margin-left: 0.5rem;
+  font-weight: normal;
 }
 
 .result-row .rank {
