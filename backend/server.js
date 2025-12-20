@@ -1510,7 +1510,9 @@ app.get('/games/:id/access-codes', authenticateToken, async (req, res) => {
       code: c.code,
       status: c.status,
       connectedAt: c.connected_at,
-      reactionTimeMs: c.reaction_time_ms
+      reactionTimeMs: c.reaction_time_ms,
+      offlineAllowed: c.offline_allowed === 1,
+      isSelected: c.is_selected === 1
     })));
   } catch (error) {
     console.error('Error fetching access codes:', error);
@@ -1611,6 +1613,151 @@ app.post('/games/:id/access-codes/reset', authenticateToken, async (req, res) =>
   }
 });
 
+// Update team offline mode
+app.patch('/games/:id/access-codes/:teamId/offline', authenticateToken, async (req, res) => {
+  try {
+    const { id, teamId } = req.params;
+    const { offlineAllowed } = req.body;
+
+    await pool.query(`
+      UPDATE team_access_codes
+      SET offline_allowed = ?
+      WHERE game_id = ? AND team_id = ?
+    `, [offlineAllowed ? 1 : 0, id, teamId]);
+
+    // Notify the team via socket if connected
+    const [codes] = await pool.query(
+      'SELECT socket_id FROM team_access_codes WHERE game_id = ? AND team_id = ?',
+      [id, teamId]
+    );
+    if (codes.length > 0 && codes[0].socket_id) {
+      const socket = io.sockets.sockets.get(codes[0].socket_id);
+      if (socket) {
+        socket.emit('team:settings', { offlineAllowed });
+      }
+    }
+
+    res.json({ success: true, teamId: parseInt(teamId), offlineAllowed });
+  } catch (error) {
+    console.error('Error updating offline mode:', error);
+    res.status(500).json({ message: 'Failed to update offline mode' });
+  }
+});
+
+// Update team selection for current round
+app.patch('/games/:id/access-codes/:teamId/selected', authenticateToken, async (req, res) => {
+  try {
+    const { id, teamId } = req.params;
+    const { isSelected } = req.body;
+
+    await pool.query(`
+      UPDATE team_access_codes
+      SET is_selected = ?
+      WHERE game_id = ? AND team_id = ?
+    `, [isSelected ? 1 : 0, id, teamId]);
+
+    // Notify the team via socket if connected
+    const [codes] = await pool.query(
+      'SELECT socket_id FROM team_access_codes WHERE game_id = ? AND team_id = ?',
+      [id, teamId]
+    );
+    if (codes.length > 0 && codes[0].socket_id) {
+      const socket = io.sockets.sockets.get(codes[0].socket_id);
+      if (socket) {
+        socket.emit('team:selected', { isSelected });
+      }
+    }
+
+    // Notify evaluators
+    io.to(`evaluator:${id}`).emit('team:selectionChanged', {
+      teamId: parseInt(teamId),
+      isSelected
+    });
+
+    res.json({ success: true, teamId: parseInt(teamId), isSelected });
+  } catch (error) {
+    console.error('Error updating team selection:', error);
+    res.status(500).json({ message: 'Failed to update team selection' });
+  }
+});
+
+// Manual time recording by evaluator
+app.post('/games/:id/access-codes/:teamId/manual-time', authenticateToken, async (req, res) => {
+  try {
+    const { id, teamId } = req.params;
+    const { reactionTimeMs, points } = req.body;
+
+    // Get team name for event log
+    const [teams] = await pool.query('SELECT name FROM teams WHERE id = ?', [teamId]);
+    const teamName = teams.length > 0 ? teams[0].name : 'Unknown Team';
+
+    // Update the game state if active
+    const gameState = activeGames.get(parseInt(id));
+    if (gameState) {
+      gameState.results.set(parseInt(teamId), {
+        teamId: parseInt(teamId),
+        teamName,
+        reactionTimeMs,
+        points,
+        timedOut: false,
+        manualEntry: true
+      });
+
+      // Broadcast to all clients
+      io.to(`game:${id}`).emit('team:pressed', {
+        teamId: parseInt(teamId),
+        teamName,
+        reactionTimeMs,
+        displayTime: (reactionTimeMs / 1000).toFixed(1),
+        points,
+        manualEntry: true
+      });
+    }
+
+    // Log the event
+    await pool.query(`
+      INSERT INTO game_event_log (game_id, description, actor, actor_type)
+      VALUES (?, ?, ?, 'evaluator')
+    `, [id, `Manual time recorded for ${teamName}: ${(reactionTimeMs / 1000).toFixed(1)}s = ${points} pts`, 'Evaluator']);
+
+    res.json({ success: true, teamId: parseInt(teamId), reactionTimeMs, points });
+  } catch (error) {
+    console.error('Error recording manual time:', error);
+    res.status(500).json({ message: 'Failed to record manual time' });
+  }
+});
+
+// Get game event log
+app.get('/games/:id/event-log', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [events] = await pool.query(`
+      SELECT id, description, timestamp, actor, actor_type
+      FROM game_event_log
+      WHERE game_id = ?
+      ORDER BY timestamp DESC
+      LIMIT 100
+    `, [id]);
+
+    res.json(events);
+  } catch (error) {
+    console.error('Error fetching event log:', error);
+    res.status(500).json({ message: 'Failed to fetch event log' });
+  }
+});
+
+// Clear game event log
+app.delete('/games/:id/event-log', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query('DELETE FROM game_event_log WHERE game_id = ?', [id]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error clearing event log:', error);
+    res.status(500).json({ message: 'Failed to clear event log' });
+  }
+});
+
 // Validate access code (public endpoint for team board)
 app.get('/teamboard/validate/:code', async (req, res) => {
   try {
@@ -1619,7 +1766,7 @@ app.get('/teamboard/validate/:code', async (req, res) => {
 
     let query = `
       SELECT tac.*, t.name as team_name, g.name as game_name, g.game_type,
-             g.timing_mode, g.maximum_point, g.countdown_seconds
+             g.timing_mode, g.maximum_point, g.countdown_seconds, g.status as game_status
       FROM team_access_codes tac
       JOIN teams t ON t.id = tac.team_id
       JOIN games g ON g.id = tac.game_id
@@ -1654,10 +1801,13 @@ app.get('/teamboard/validate/:code', async (req, res) => {
       teamName: c.team_name,
       gameName: c.game_name,
       gameType: c.game_type,
+      gameStatus: c.game_status,
       timingMode: c.timing_mode,
       maxPoints: c.maximum_point,
       countdownSeconds: c.countdown_seconds,
-      status: c.status
+      status: c.status,
+      isSelected: c.is_selected === 1,
+      offlineAllowed: c.offline_allowed === 1
     });
   } catch (error) {
     console.error('Error validating code:', error);
@@ -1674,7 +1824,7 @@ io.on('connection', (socket) => {
   socket.on('team:join', async ({ code, gameId }) => {
     try {
       const [codes] = await pool.query(`
-        SELECT tac.*, t.name as team_name, g.timing_mode
+        SELECT tac.*, t.name as team_name, g.timing_mode, g.status as game_status
         FROM team_access_codes tac
         JOIN teams t ON t.id = tac.team_id
         JOIN games g ON g.id = tac.game_id
@@ -1687,6 +1837,16 @@ io.on('connection', (socket) => {
       }
 
       const accessCode = codes[0];
+
+      // Check if game is running - only allow connections when game is running
+      if (accessCode.game_status !== 'running') {
+        socket.emit('team:rejected', {
+          reason: accessCode.game_status === 'coming'
+            ? 'Game has not started yet'
+            : 'Game has already ended'
+        });
+        return;
+      }
 
       if (accessCode.status === 'active' && accessCode.socket_id !== socket.id) {
         socket.emit('team:rejected', { reason: 'Code is already in use' });
@@ -1710,13 +1870,17 @@ io.on('connection', (socket) => {
       socket.gameId = gameId;
       socket.teamName = accessCode.team_name;
       socket.timingMode = accessCode.timing_mode;
+      socket.offlineAllowed = accessCode.offline_allowed === 1;
+      socket.isSelected = accessCode.is_selected === 1;
 
       socket.join(`game:${gameId}`);
 
       socket.emit('team:validated', {
         teamName: accessCode.team_name,
         gameId,
-        teamId: accessCode.team_id
+        teamId: accessCode.team_id,
+        isSelected: accessCode.is_selected === 1,
+        offlineAllowed: accessCode.offline_allowed === 1
       });
 
       // Notify evaluators
@@ -1826,27 +1990,27 @@ io.on('connection', (socket) => {
       const game = games[0];
       const maxTimeMs = game.maximum_point * 100; // max_point in tenths of seconds
 
-      // Reset team results for this round
+      // Reset team results for this round (only for selected teams)
       await pool.query(`
         UPDATE team_access_codes
         SET pressed_at = NULL, reaction_time_ms = NULL
-        WHERE game_id = ?
+        WHERE game_id = ? AND is_selected = 1
       `, [gameId]);
 
-      // Get connected teams (only 'active' status can play)
+      // Get connected AND selected teams (only 'active' status and is_selected = 1 can play)
       const [connectedTeams] = await pool.query(`
-        SELECT tac.team_id, tac.socket_id, t.name as team_name
+        SELECT tac.team_id, tac.socket_id, tac.offline_allowed, t.name as team_name
         FROM team_access_codes tac
         JOIN teams t ON t.id = tac.team_id
-        WHERE tac.game_id = ? AND tac.status = 'active'
+        WHERE tac.game_id = ? AND tac.status = 'active' AND tac.is_selected = 1
       `, [gameId]);
 
-      // Mark disconnected teams as 'lost'
-      const [disconnectedTeams] = await pool.query(`
-        SELECT tac.team_id, t.name as team_name
+      // Get all selected teams (including offline ones)
+      const [selectedTeams] = await pool.query(`
+        SELECT tac.team_id, tac.offline_allowed, t.name as team_name
         FROM team_access_codes tac
         JOIN teams t ON t.id = tac.team_id
-        WHERE tac.game_id = ? AND tac.status != 'active' AND tac.code IS NOT NULL
+        WHERE tac.game_id = ? AND tac.is_selected = 1
       `, [gameId]);
 
       // Store game state
@@ -1860,17 +2024,26 @@ io.on('connection', (socket) => {
         startedAt: now,
         results: new Map(),
         connectedTeams: connectedTeams.map(t => t.team_id),
+        selectedTeams: selectedTeams.map(t => t.team_id),
         goTimeout: null,
         endTimeout: null
       };
       activeGames.set(parseInt(gameId), gameState);
+
+      // Log event
+      const teamNames = selectedTeams.map(t => t.team_name).join(', ');
+      await pool.query(`
+        INSERT INTO game_event_log (game_id, description, actor, actor_type)
+        VALUES (?, ?, 'Evaluator', 'evaluator')
+      `, [gameId, `Game started with ${selectedTeams.length} team(s): ${teamNames}`]);
 
       // Broadcast countdown to all clients in game room
       io.to(`game:${gameId}`).emit('game:countdown', {
         startsAt: goTime,
         countdownSeconds: countdown,
         maxTimeMs,
-        serverTime: now
+        serverTime: now,
+        selectedTeams: gameState.selectedTeams
       });
 
       // Schedule GO event
@@ -1905,6 +2078,12 @@ io.on('connection', (socket) => {
       const gameState = activeGames.get(parseInt(socket.gameId));
       if (!gameState || gameState.status !== 'running') {
         socket.emit('press:rejected', { reason: 'Game not running' });
+        return;
+      }
+
+      // Check if team is selected for this round
+      if (!gameState.selectedTeams.includes(socket.teamId)) {
+        socket.emit('press:rejected', { reason: 'Your team is not selected for this round' });
         return;
       }
 
@@ -2097,8 +2276,21 @@ io.on('connection', (socket) => {
         // Check timing mode for disconnect handling
         const gameState = activeGames.get(parseInt(socket.gameId));
 
-        if (gameState && gameState.status === 'running' && socket.timingMode === 'server') {
-          // Server-trust mode: kick immediately (1 sec tolerance handled by client)
+        // If offline is allowed for this team, always allow reconnect
+        if (socket.offlineAllowed) {
+          await pool.query(`
+            UPDATE team_access_codes
+            SET status = 'available', socket_id = NULL, disconnected_at = NOW()
+            WHERE id = ?
+          `, [socket.accessCodeId]);
+
+          io.to(`evaluator:${socket.gameId}`).emit('team:disconnected', {
+            teamId: socket.teamId,
+            teamName: socket.teamName,
+            offlineAllowed: true
+          });
+        } else if (gameState && gameState.status === 'running' && socket.timingMode === 'server') {
+          // Server-trust mode and not offline-allowed: kick immediately
           await pool.query(`
             UPDATE team_access_codes
             SET status = 'used', disconnected_at = NOW()

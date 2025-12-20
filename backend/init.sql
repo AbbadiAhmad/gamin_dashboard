@@ -168,6 +168,8 @@ CREATE TABLE IF NOT EXISTS team_access_codes (
     disconnected_at TIMESTAMP NULL,
     pressed_at TIMESTAMP NULL,
     reaction_time_ms INT NULL,
+    offline_allowed BOOLEAN DEFAULT FALSE,
+    is_selected BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE,
@@ -179,3 +181,17 @@ CREATE TABLE IF NOT EXISTS team_access_codes (
 -- Create indexes for team_access_codes
 CREATE INDEX idx_team_access_codes_game_id ON team_access_codes(game_id);
 CREATE INDEX idx_team_access_codes_code ON team_access_codes(code);
+
+-- Create game_event_log table for time-based game events
+CREATE TABLE IF NOT EXISTS game_event_log (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    game_id INT NOT NULL,
+    description VARCHAR(255) NOT NULL,
+    timestamp TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP(3),
+    actor VARCHAR(100) NOT NULL,
+    actor_type ENUM('evaluator', 'team', 'system') DEFAULT 'system',
+    FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE
+);
+
+-- Create index for game_event_log
+CREATE INDEX idx_game_event_log_game_id ON game_event_log(game_id);
