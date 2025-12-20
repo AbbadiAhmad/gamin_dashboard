@@ -35,15 +35,36 @@
         </div>
       </div>
       <div class="teams-list">
+        <!-- Header row -->
+        <div class="team-row header">
+          <div class="team-checkbox">Sel</div>
+          <div class="team-offline">Off</div>
+          <div class="team-name">Team</div>
+          <div class="team-code">Code</div>
+          <div class="team-result" v-if="roundResults.length > 0">Result</div>
+          <div class="team-actions">Actions</div>
+        </div>
+
         <div v-for="team in groupTeams" :key="team.id" class="team-row"
-          :class="{ selected: selectedTeams.includes(team.id) }">
+          :class="{ selected: isTeamSelected(team.id), offline: isTeamOfflineAllowed(team.id) }">
           <div class="team-checkbox">
-            <input type="checkbox" :id="`team-${team.id}`" :checked="selectedTeams.includes(team.id)"
-              @change="toggleTeam(team.id)" />
+            <input type="checkbox" :id="`team-sel-${team.id}`"
+              :checked="isTeamSelected(team.id)"
+              @change="toggleTeamSelection(team.id)"
+              :disabled="!getTeamCode(team.id)"
+              title="Select team for next round" />
+          </div>
+
+          <div class="team-offline">
+            <input type="checkbox" :id="`team-off-${team.id}`"
+              :checked="isTeamOfflineAllowed(team.id)"
+              @change="toggleOfflineMode(team.id)"
+              :disabled="!getTeamCode(team.id)"
+              title="Allow offline mode (manual time entry)" />
           </div>
 
           <div class="team-name">
-            <label :for="`team-${team.id}`">{{ team.name }}</label>
+            <label :for="`team-sel-${team.id}`">{{ team.name }}</label>
           </div>
 
           <div class="team-code" :class="getCodeStatus(team.id)">
@@ -61,10 +82,10 @@
 
           <div class="team-actions">
             <button v-if="!getTeamCode(team.id)" class="action-btn generate" @click="generateCode(team.id)">
-              generate code
+              generate
             </button>
             <button v-else class="action-btn reset" @click="resetCode(team.id)">
-              reset code
+              reset
             </button>
           </div>
         </div>
@@ -101,11 +122,38 @@
 
       <div class="control-row" v-if="gameState === 'running'">
         <div class="running-display">
-          Game in progress... ({{ roundResults.length }}/{{ connectedTeamsCount }} pressed)
+          Game in progress... ({{ roundResults.length }}/{{ selectedTeamsCount }} pressed)
         </div>
         <base-button mode="flat" @click="discardRound" v-if="showDiscardButton">
           Discard Round
         </base-button>
+      </div>
+
+      <!-- Manual Time Input for Offline Teams -->
+      <div class="manual-time-section" v-if="(gameState === 'running' || gameState === 'completed') && offlineTeamsWithoutResults.length > 0">
+        <h4>Manual Time Entry (Offline Teams)</h4>
+        <div class="manual-time-list">
+          <div v-for="code in offlineTeamsWithoutResults" :key="code.teamId" class="manual-time-row">
+            <span class="team-label">{{ code.teamName }}</span>
+            <input
+              type="number"
+              step="0.1"
+              min="0"
+              :max="game.maximumPoint / 10"
+              v-model="manualTimeInput[code.teamId] ? manualTimeInput[code.teamId].time : ''"
+              @input="e => { if(!manualTimeInput[code.teamId]) manualTimeInput[code.teamId] = { time: '', show: true }; manualTimeInput[code.teamId].time = e.target.value; }"
+              placeholder="Time (s)"
+              class="time-input"
+            />
+            <button
+              class="action-btn generate"
+              @click="submitManualTime(code.teamId)"
+              :disabled="loadingManualTime || !manualTimeInput[code.teamId]?.time"
+            >
+              Record
+            </button>
+          </div>
+        </div>
       </div>
 
       <!-- Show results in real-time (always visible when there are results) -->
@@ -142,6 +190,21 @@
 
     </div>
 
+    <!-- Event Log Section -->
+    <div class="event-log-section" v-if="eventLog.length > 0">
+      <div class="event-log-header">
+        <h3>Event Log</h3>
+        <button class="action-btn reset" @click="clearEventLog">Clear Log</button>
+      </div>
+      <div class="event-log-list">
+        <div v-for="event in eventLog" :key="event.id" class="event-row">
+          <span class="event-time">{{ formatEventTime(event.timestamp) }}</span>
+          <span class="event-actor" :class="event.actor_type">{{ event.actor }}</span>
+          <span class="event-description">{{ event.description }}</span>
+        </div>
+      </div>
+    </div>
+
     <!-- Connection Status -->
     <div class="connection-status" :class="{ connected: socketConnected }">
       {{ socketConnected ? 'Connected' : 'Disconnected' }}
@@ -164,7 +227,6 @@ export default {
       game: null,
       groupTeams: [],
       teamCodes: [],
-      selectedTeams: [],
       socket: null,
       socketConnected: false,
       gameState: 'idle', // idle, countdown, running, completed
@@ -176,30 +238,46 @@ export default {
       showDiscardButton: false,
       discardTimeout: null,
       copied: false,
-      copiedAudience: false
+      copiedAudience: false,
+      eventLog: [],
+      manualTimeInput: {}, // teamId -> { time: '', show: false }
+      loadingManualTime: false
     };
   },
   computed: {
     connectedTeamsCount() {
       return this.teamCodes.filter(c => c.status === 'active').length;
     },
+    selectedTeamsCount() {
+      return this.teamCodes.filter(c => c.isSelected).length;
+    },
     sortedResults() {
       return [...this.roundResults].sort((a, b) => a.reactionTimeMs - b.reactionTimeMs);
     },
     selectedTeamsWithoutCodes() {
-      return this.selectedTeams.filter(tid => !this.getTeamCode(tid));
+      return this.groupTeams
+        .filter(t => this.isTeamSelected(t.id) && !this.getTeamCode(t.id))
+        .map(t => t.id);
     },
     teamboardUrl() {
       return `${window.location.origin}/teamboard`;
     },
     audienceUrl() {
-      return `${window.location.origin}/dashboard/time-game/${this.id}`;
+      return `${window.location.origin}/audience/${this.id}`;
     },
     unconfirmedCount() {
       return this.roundResults.filter(r => !this.confirmedTeamIds.has(r.teamId)).length;
     },
     hasUnconfirmedResults() {
       return this.unconfirmedCount > 0;
+    },
+    offlineTeamsWithoutResults() {
+      // Get offline-allowed teams that haven't pressed yet
+      return this.teamCodes.filter(c =>
+        c.offlineAllowed &&
+        c.isSelected &&
+        !this.roundResults.find(r => r.teamId === c.teamId)
+      );
     }
   },
   async created() {
@@ -242,6 +320,7 @@ export default {
 
         await this.loadGroupTeams();
         await this.loadAccessCodes();
+        await this.loadEventLog();
       } catch (error) {
         this.error = error.message || 'Failed to load data';
       }
@@ -271,6 +350,36 @@ export default {
         }
       } catch (error) {
         console.error('Failed to load access codes:', error);
+      }
+    },
+
+    async loadEventLog() {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_BASE_URL}/games/${this.id}/event-log`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (response.ok) {
+          this.eventLog = await response.json();
+        }
+      } catch (error) {
+        console.error('Failed to load event log:', error);
+      }
+    },
+
+    async clearEventLog() {
+      if (!confirm('Clear all event logs for this game?')) return;
+
+      try {
+        const token = localStorage.getItem('token');
+        await fetch(`${API_BASE_URL}/games/${this.id}/event-log`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        this.eventLog = [];
+      } catch (error) {
+        console.error('Failed to clear event log:', error);
       }
     },
 
@@ -377,6 +486,8 @@ export default {
         }
         // Notify parent to refresh scores
         this.$emit('scores-updated');
+        // Reload event log
+        this.loadEventLog();
       });
 
       this.socket.on('game:discarded', () => {
@@ -426,13 +537,114 @@ export default {
       return this.roundResults.find(r => r.teamId === teamId);
     },
 
-    toggleTeam(teamId) {
-      const index = this.selectedTeams.indexOf(teamId);
-      if (index === -1) {
-        this.selectedTeams.push(teamId);
-      } else {
-        this.selectedTeams.splice(index, 1);
+    isTeamSelected(teamId) {
+      const code = this.teamCodes.find(c => c.teamId === teamId);
+      return code ? code.isSelected : false;
+    },
+
+    isTeamOfflineAllowed(teamId) {
+      const code = this.teamCodes.find(c => c.teamId === teamId);
+      return code ? code.offlineAllowed : false;
+    },
+
+    getTeamName(teamId) {
+      const team = this.groupTeams.find(t => t.id === teamId);
+      return team ? team.name : 'Unknown';
+    },
+
+    async toggleTeamSelection(teamId) {
+      const code = this.teamCodes.find(c => c.teamId === teamId);
+      if (!code) return;
+
+      const newValue = !code.isSelected;
+      try {
+        const token = localStorage.getItem('token');
+        await fetch(`${API_BASE_URL}/games/${this.id}/access-codes/${teamId}/selected`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ isSelected: newValue })
+        });
+
+        code.isSelected = newValue;
+      } catch (error) {
+        this.error = error.message || 'Failed to update selection';
       }
+    },
+
+    async toggleOfflineMode(teamId) {
+      const code = this.teamCodes.find(c => c.teamId === teamId);
+      if (!code) return;
+
+      const newValue = !code.offlineAllowed;
+      try {
+        const token = localStorage.getItem('token');
+        await fetch(`${API_BASE_URL}/games/${this.id}/access-codes/${teamId}/offline`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ offlineAllowed: newValue })
+        });
+
+        code.offlineAllowed = newValue;
+      } catch (error) {
+        this.error = error.message || 'Failed to update offline mode';
+      }
+    },
+
+    toggleManualTimeInput(teamId) {
+      if (!this.manualTimeInput[teamId]) {
+        this.manualTimeInput[teamId] = { time: '', show: true };
+      } else {
+        this.manualTimeInput[teamId].show = !this.manualTimeInput[teamId].show;
+      }
+    },
+
+    async submitManualTime(teamId) {
+      const input = this.manualTimeInput[teamId];
+      if (!input || !input.time) return;
+
+      const timeInSeconds = parseFloat(input.time);
+      if (isNaN(timeInSeconds) || timeInSeconds < 0) {
+        this.error = 'Invalid time value';
+        return;
+      }
+
+      const reactionTimeMs = Math.round(timeInSeconds * 1000);
+      const maxPoints = this.game.maximumPoint;
+      const points = Math.max(0, maxPoints - Math.floor(reactionTimeMs / 100));
+
+      this.loadingManualTime = true;
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_BASE_URL}/games/${this.id}/access-codes/${teamId}/manual-time`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ reactionTimeMs, points })
+        });
+
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.message || 'Failed to record time');
+        }
+
+        // Close the input
+        input.show = false;
+        input.time = '';
+
+        // Reload event log
+        await this.loadEventLog();
+      } catch (error) {
+        this.error = error.message;
+      }
+      this.loadingManualTime = false;
     },
 
     async generateCode(teamId) {
@@ -602,6 +814,15 @@ export default {
       } catch (err) {
         console.error('Failed to copy:', err);
       }
+    },
+
+    formatEventTime(timestamp) {
+      const date = new Date(timestamp);
+      return date.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
     }
   }
 };
@@ -970,6 +1191,143 @@ export default {
 
 .connection-status.connected {
   background: #28a745;
+}
+
+/* Team row header and offline styles */
+.team-row.header {
+  background: #f0f0f0;
+  font-weight: bold;
+  font-size: 0.85rem;
+  color: #666;
+  padding: 0.5rem 1rem;
+}
+
+.team-offline {
+  flex-shrink: 0;
+  min-width: 30px;
+}
+
+.team-offline input {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.team-row.offline {
+  background: #fff3e0;
+  border-left: 3px solid #ff9800;
+}
+
+.team-row.selected.offline {
+  background: linear-gradient(135deg, #f0e6fd 50%, #fff3e0 50%);
+}
+
+/* Manual Time Section */
+.manual-time-section {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: #fff3e0;
+  border-radius: 8px;
+  border: 1px solid #ffcc80;
+}
+
+.manual-time-section h4 {
+  margin: 0 0 0.75rem 0;
+  color: #e65100;
+  font-size: 1rem;
+}
+
+.manual-time-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.manual-time-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.manual-time-row .team-label {
+  min-width: 120px;
+  font-weight: 500;
+}
+
+.manual-time-row .time-input {
+  width: 100px;
+  padding: 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 1rem;
+  text-align: center;
+}
+
+/* Event Log Section */
+.event-log-section {
+  margin-top: 2rem;
+  padding: 1rem;
+  background: #f5f5f5;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+}
+
+.event-log-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.event-log-header h3 {
+  margin: 0;
+  color: #333;
+  font-size: 1.1rem;
+}
+
+.event-log-list {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.event-row {
+  display: flex;
+  gap: 1rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #e0e0e0;
+  font-size: 0.9rem;
+}
+
+.event-row:last-child {
+  border-bottom: none;
+}
+
+.event-time {
+  color: #666;
+  font-family: monospace;
+  min-width: 85px;
+}
+
+.event-actor {
+  font-weight: 500;
+  min-width: 80px;
+}
+
+.event-actor.evaluator {
+  color: #3d008d;
+}
+
+.event-actor.team {
+  color: #1565c0;
+}
+
+.event-actor.system {
+  color: #666;
+}
+
+.event-description {
+  flex: 1;
+  color: #333;
 }
 
 /* Mobile */
