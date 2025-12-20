@@ -67,6 +67,13 @@
       <div class="waiting-message">Waiting for next round...</div>
     </div>
 
+    <!-- Not Selected for this round -->
+    <div v-else-if="state === 'not-selected'" class="not-selected-screen">
+      <div class="team-name">{{ teamName }}</div>
+      <div class="not-selected-message">Not selected for this round</div>
+      <div class="waiting-message">Please wait...</div>
+    </div>
+
     <!-- Kicked -->
     <div v-else-if="state === 'kicked'" class="kicked-screen">
       <div class="kicked-message">DISCONNECTED</div>
@@ -112,7 +119,9 @@ export default {
       timeOffset: 0,
       kickReason: '',
       confirmed: false,
-      gameState: ''
+      gameState: '',
+      isSelected: true,
+      offlineAllowed: false
     };
   },
   async mounted() {
@@ -218,8 +227,22 @@ export default {
       this.socket.on('team:validated', (data) => {
         console.log('Team validated:', data);
         this.teamName = data.teamName;
+        this.isSelected = data.isSelected !== false;
+        this.offlineAllowed = data.offlineAllowed || false;
         this.state = 'waiting';
         this.gameState = 'waiting';
+      });
+
+      this.socket.on('team:selected', (data) => {
+        console.log('Selection changed:', data);
+        this.isSelected = data.isSelected;
+      });
+
+      this.socket.on('team:settings', (data) => {
+        console.log('Settings changed:', data);
+        if (data.offlineAllowed !== undefined) {
+          this.offlineAllowed = data.offlineAllowed;
+        }
       });
 
       this.socket.on('team:rejected', (data) => {
@@ -230,11 +253,21 @@ export default {
 
       this.socket.on('game:countdown', (data) => {
         console.log('Countdown started:', data);
-        this.state = 'countdown';
-        this.gameState = 'countdown';
         this.pressed = false;
         this.goTime = data.startsAt;
         this.maxTimeMs = data.maxTimeMs;
+
+        // Check if this team is selected for this round
+        if (data.selectedTeams && !data.selectedTeams.includes(this.teamId)) {
+          this.isSelected = false;
+          this.state = 'not-selected';
+          this.gameState = 'not-selected';
+          return;
+        }
+
+        this.isSelected = true;
+        this.state = 'countdown';
+        this.gameState = 'countdown';
 
         // Start countdown display
         this.startCountdown(data.startsAt, data.serverTime);
@@ -242,6 +275,9 @@ export default {
 
       this.socket.on('game:go', (data) => {
         console.log('GO!', data);
+        // Don't change state if not selected
+        if (!this.isSelected) return;
+
         this.state = 'go';
         this.gameState = 'go';
         this.goTime = data.goTime;
@@ -266,6 +302,14 @@ export default {
 
       this.socket.on('game:results', (data) => {
         console.log('Results:', data);
+        // If not selected, just return to waiting
+        if (!this.isSelected || this.state === 'not-selected') {
+          this.state = 'waiting';
+          this.gameState = 'waiting';
+          this.isSelected = true;
+          return;
+        }
+
         // Find our result
         const myResult = data.results.find(r => r.teamId === this.teamId);
         if (myResult) {
@@ -283,8 +327,11 @@ export default {
 
       this.socket.on('game:discarded', () => {
         console.log('Round discarded');
-        this.state = 'discarded';
-        this.gameState = 'discarded';
+        // Only show discarded if this team was participating
+        if (this.isSelected && this.state !== 'not-selected') {
+          this.state = 'discarded';
+          this.gameState = 'discarded';
+        }
         this.stopElapsedTimer();
         this.pressed = false;
 
@@ -293,6 +340,7 @@ export default {
           this.state = 'waiting';
           this.gameState = 'waiting';
           this.confirmed = false;
+          this.isSelected = true; // Reset selection for next round
         }, 2000);
       });
 
@@ -436,6 +484,10 @@ export default {
 .team-board.kicked,
 .team-board.lost {
   background: #3d0000;
+}
+
+.team-board.not-selected {
+  background: #2d3436;
 }
 
 /* Entry Screen */
@@ -611,6 +663,18 @@ export default {
   font-size: 4rem;
   font-weight: bold;
   color: #e74c3c;
+  margin-bottom: 1rem;
+}
+
+/* Not Selected Screen */
+.not-selected-screen {
+  text-align: center;
+}
+
+.not-selected-message {
+  font-size: 2rem;
+  font-weight: bold;
+  color: #95a5a6;
   margin-bottom: 1rem;
 }
 
