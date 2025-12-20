@@ -2023,9 +2023,23 @@ io.on('connection', (socket) => {
         return;
       }
 
-      // Clear timeouts if still running
-      if (gameState.goTimeout) clearTimeout(gameState.goTimeout);
-      if (gameState.endTimeout) clearTimeout(gameState.endTimeout);
+      // Initialize confirmedResults set if not exists
+      if (!gameState.confirmedResults) {
+        gameState.confirmedResults = new Set();
+      }
+
+      // Get only unconfirmed results to save
+      const resultsToSave = [];
+      for (const [teamId, result] of gameState.results) {
+        if (!gameState.confirmedResults.has(teamId)) {
+          resultsToSave.push({ teamId, result });
+        }
+      }
+
+      if (resultsToSave.length === 0) {
+        socket.emit('error', { message: 'No new results to confirm' });
+        return;
+      }
 
       // Get game details
       const [games] = await pool.query(
@@ -2038,28 +2052,16 @@ io.on('connection', (socket) => {
       try {
         await connection.beginTransaction();
 
-        // Save scores to game_scores table
-        for (const [teamId, result] of gameState.results) {
+        // Save only unconfirmed scores to game_scores table
+        for (const { teamId, result } of resultsToSave) {
           await connection.query(`
             INSERT INTO game_scores (game_id, team_id, score)
             VALUES (?, ?, ?)
-            ON DUPLICATE KEY UPDATE score = ?
-          `, [gameId, teamId, result.points, result.points]);
-        }
+            ON DUPLICATE KEY UPDATE score = VALUES(score)
+          `, [gameId, teamId, result.points]);
 
-        // Handle teams that didn't press (timeout = 0 points)
-        const [allCodes] = await connection.query(`
-          SELECT team_id FROM team_access_codes WHERE game_id = ?
-        `, [gameId]);
-
-        for (const code of allCodes) {
-          if (!gameState.results.has(code.team_id)) {
-            await connection.query(`
-              INSERT INTO game_scores (game_id, team_id, score)
-              VALUES (?, ?, 0)
-              ON DUPLICATE KEY UPDATE score = 0
-            `, [gameId, code.team_id]);
-          }
+          // Mark as confirmed
+          gameState.confirmedResults.add(teamId);
         }
 
         // Recalculate group scores
@@ -2067,14 +2069,13 @@ io.on('connection', (socket) => {
 
         await connection.commit();
 
-        // Notify all clients
+        // Notify all clients with confirmed team IDs
         io.to(`game:${gameId}`).emit('game:confirmed', {
-          message: 'Results saved successfully'
+          message: 'Results saved successfully',
+          confirmedTeamIds: Array.from(gameState.confirmedResults)
         });
 
-        activeGames.delete(parseInt(gameId));
-
-        console.log(`Game ${gameId} results confirmed and saved`);
+        console.log(`Game ${gameId}: ${resultsToSave.length} results confirmed and saved`);
       } catch (error) {
         await connection.rollback();
         throw error;

@@ -396,10 +396,12 @@ export default {
 
       this.socket.on('game:confirmed', (data) => {
         console.log('Results confirmed', data);
-        // Mark all current results as confirmed (keep results visible)
-        this.roundResults.forEach(r => {
-          this.confirmedTeamIds.add(r.teamId);
-        });
+        // Mark confirmed results using server-provided IDs
+        if (data.confirmedTeamIds) {
+          data.confirmedTeamIds.forEach(id => {
+            this.confirmedTeamIds.add(id);
+          });
+        }
         // Notify parent to refresh scores
         this.$emit('scores-updated');
       });
