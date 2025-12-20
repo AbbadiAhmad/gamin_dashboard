@@ -14,21 +14,32 @@
     <!-- Team Codes Section -->
     <div class="teams-section">
       <h3>Team Access Codes</h3>
+      <div>
+        <!-- Teamboard Access Link -->
+        <div class="teamboard-link">
+        <span class="link-label">Team Access URL:</span>
+        <code class="link-url">{{ teamboardUrl }}</code>
+        <!-- <button class="copy-btn" @click="copyTeamboardUrl" title="Copy to clipboard">
+            {{ copied ? 'Copied!' : 'Copy' }}
+          </button> -->
+        </div>
 
+        <!-- Audience Dashboard Link -->
+        <div class="teamboard-link">
+        <span class="link-label">Audience Dashboard:</span>
+        <code class="link-url">{{ audienceUrl }}</code>
+        <!-- <button class="copy-btn" @click="copyAudienceUrl" title="Copy to clipboard">
+            {{ copiedAudience ? 'Copied!' : 'Copy' }}
+          </button> -->
+        <a :href="audienceUrl" target="_blank" class="open-btn">Open</a> 
+        </div>
+      </div>
       <div class="teams-list">
-        <div
-          v-for="team in groupTeams"
-          :key="team.id"
-          class="team-row"
-          :class="{ selected: selectedTeams.includes(team.id) }"
-        >
+        <div v-for="team in groupTeams" :key="team.id" class="team-row"
+          :class="{ selected: selectedTeams.includes(team.id) }">
           <div class="team-checkbox">
-            <input
-              type="checkbox"
-              :id="`team-${team.id}`"
-              :checked="selectedTeams.includes(team.id)"
-              @change="toggleTeam(team.id)"
-            />
+            <input type="checkbox" :id="`team-${team.id}`" :checked="selectedTeams.includes(team.id)"
+              @change="toggleTeam(team.id)" />
           </div>
 
           <div class="team-name">
@@ -49,18 +60,10 @@
           </div>
 
           <div class="team-actions">
-            <button
-              v-if="!getTeamCode(team.id)"
-              class="action-btn generate"
-              @click="generateCode(team.id)"
-            >
+            <button v-if="!getTeamCode(team.id)" class="action-btn generate" @click="generateCode(team.id)">
               generate code
             </button>
-            <button
-              v-else
-              class="action-btn reset"
-              @click="resetCode(team.id)"
-            >
+            <button v-else class="action-btn reset" @click="resetCode(team.id)">
               reset code
             </button>
           </div>
@@ -69,32 +72,9 @@
 
       <!-- Bulk Actions -->
       <div class="bulk-actions">
-        <base-button
-          mode="flat"
-          @click="generateCodesForSelected"
-          :disabled="selectedTeamsWithoutCodes.length === 0"
-        >
+        <base-button mode="flat" @click="generateCodesForSelected" :disabled="selectedTeamsWithoutCodes.length === 0">
           Generate Codes for Selected ({{ selectedTeamsWithoutCodes.length }})
         </base-button>
-      </div>
-
-      <!-- Teamboard Access Link -->
-      <div class="teamboard-link">
-        <span class="link-label">Team Access URL:</span>
-        <code class="link-url">{{ teamboardUrl }}</code>
-        <button class="copy-btn" @click="copyTeamboardUrl" title="Copy to clipboard">
-          {{ copied ? 'Copied!' : 'Copy' }}
-        </button>
-      </div>
-
-      <!-- Audience Dashboard Link -->
-      <div class="teamboard-link audience-link">
-        <span class="link-label">Audience Dashboard:</span>
-        <code class="link-url">{{ audienceUrl }}</code>
-        <button class="copy-btn" @click="copyAudienceUrl" title="Copy to clipboard">
-          {{ copiedAudience ? 'Copied!' : 'Copy' }}
-        </button>
-        <a :href="audienceUrl" target="_blank" class="open-btn">Open</a>
       </div>
     </div>
 
@@ -110,10 +90,7 @@
           </select>
         </div>
 
-        <base-button
-          @click="startGame"
-          :disabled="connectedTeamsCount === 0"
-        >
+        <base-button @click="startGame" :disabled="connectedTeamsCount === 0">
           Start Game ({{ connectedTeamsCount }} teams ready)
         </base-button>
       </div>
@@ -140,16 +117,11 @@
           </span>
         </h3>
         <div class="results-list">
-          <div
-            v-for="(result, index) in sortedResults"
-            :key="result.teamId"
-            class="result-row"
-            :class="{
-              timeout: result.timedOut,
-              confirmed: isResultConfirmed(result.teamId),
-              unconfirmed: !isResultConfirmed(result.teamId)
-            }"
-          >
+          <div v-for="(result, index) in sortedResults" :key="result.teamId" class="result-row" :class="{
+            timeout: result.timedOut,
+            confirmed: isResultConfirmed(result.teamId),
+            unconfirmed: !isResultConfirmed(result.teamId)
+          }">
             <span class="rank">{{ index + 1 }}</span>
             <span class="name">{{ result.teamName }}</span>
             <span class="time">{{ result.timedOut ? 'TIMEOUT' : result.displayTime + 's' }}</span>
@@ -167,6 +139,7 @@
           <base-button mode="flat" @click="discardRound">Discard All</base-button>
         </div>
       </div>
+
     </div>
 
     <!-- Connection Status -->
@@ -220,7 +193,7 @@ export default {
       return `${window.location.origin}/teamboard`;
     },
     audienceUrl() {
-      return `${window.location.origin}/audience/${this.id}`;
+      return `${window.location.origin}/dashboard/time-game/${this.id}`;
     },
     unconfirmedCount() {
       return this.roundResults.filter(r => !this.confirmedTeamIds.has(r.teamId)).length;
@@ -788,8 +761,9 @@ export default {
 
 /* Teamboard Link */
 .teamboard-link {
-  margin-top: 1.5rem;
-  padding: 1rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+  padding: 0.3rem;
   background: #f5f5f5;
   border-radius: 8px;
   display: flex;
@@ -832,7 +806,7 @@ export default {
 
 .open-btn {
   padding: 0.5rem 1rem;
-  background: #28a745;
+  background: #999;
   color: white;
   border: none;
   border-radius: 4px;

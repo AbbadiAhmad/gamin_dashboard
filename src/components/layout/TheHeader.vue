@@ -24,7 +24,14 @@
                 <router-link to="/dashboard/gaming-groups" @click="closeDropdown(); closeMobileMenu()">Gaming Groups
                   Dashboard</router-link>
               </li>
+              <li>
+                <router-link to="/dashboard/time-game" @click="closeDropdown(); closeMobileMenu()">Time Game</router-link>
+              </li>
+
             </ul>
+          </li>
+          <li>
+            <router-link to="/teamboard" @click="closeMobileMenu">Team Board</router-link>
           </li>
           <li v-if="isLoggedIn">
             <router-link to="/gaming-groups" @click="closeMobileMenu">Gaming Groups</router-link>
