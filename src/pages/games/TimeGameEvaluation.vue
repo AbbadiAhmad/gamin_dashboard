@@ -86,6 +86,16 @@
           {{ copied ? 'Copied!' : 'Copy' }}
         </button>
       </div>
+
+      <!-- Audience Dashboard Link -->
+      <div class="teamboard-link audience-link">
+        <span class="link-label">Audience Dashboard:</span>
+        <code class="link-url">{{ audienceUrl }}</code>
+        <button class="copy-btn" @click="copyAudienceUrl" title="Copy to clipboard">
+          {{ copiedAudience ? 'Copied!' : 'Copy' }}
+        </button>
+        <a :href="audienceUrl" target="_blank" class="open-btn">Open</a>
+      </div>
     </div>
 
     <!-- Game Controls -->
@@ -192,7 +202,8 @@ export default {
       confirmedTeamIds: new Set(), // Track which teams have been confirmed
       showDiscardButton: false,
       discardTimeout: null,
-      copied: false
+      copied: false,
+      copiedAudience: false
     };
   },
   computed: {
@@ -207,6 +218,9 @@ export default {
     },
     teamboardUrl() {
       return `${window.location.origin}/teamboard`;
+    },
+    audienceUrl() {
+      return `${window.location.origin}/audience/${this.id}`;
     },
     unconfirmedCount() {
       return this.roundResults.filter(r => !this.confirmedTeamIds.has(r.teamId)).length;
@@ -601,6 +615,18 @@ export default {
       } catch (err) {
         console.error('Failed to copy:', err);
       }
+    },
+
+    async copyAudienceUrl() {
+      try {
+        await navigator.clipboard.writeText(this.audienceUrl);
+        this.copiedAudience = true;
+        setTimeout(() => {
+          this.copiedAudience = false;
+        }, 2000);
+      } catch (err) {
+        console.error('Failed to copy:', err);
+      }
     }
   }
 };
@@ -800,6 +826,27 @@ export default {
 
 .copy-btn:hover {
   background: #5c00b8;
+}
+
+.open-btn {
+  padding: 0.5rem 1rem;
+  background: #28a745;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  text-decoration: none;
+  transition: background-color 0.2s;
+}
+
+.open-btn:hover {
+  background: #218838;
+}
+
+.audience-link {
+  background: #e8f5e9;
+  border: 1px solid #a5d6a7;
 }
 
 /* Game Controls */

@@ -1771,6 +1771,35 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Audience joins to watch game (no auth required)
+  socket.on('audience:join', async ({ gameId }) => {
+    try {
+      socket.gameId = gameId;
+      socket.isAudience = true;
+
+      // Join the game room to receive broadcasts
+      socket.join(`game:${gameId}`);
+
+      // Send current game state if exists
+      const gameState = activeGames.get(parseInt(gameId));
+      if (gameState) {
+        // Send current results if any
+        const results = Array.from(gameState.results.values()).map(r => ({
+          ...r,
+          displayTime: (r.reactionTimeMs / 1000).toFixed(1)
+        }));
+        socket.emit('game:state', {
+          status: gameState.status,
+          results
+        });
+      }
+
+      console.log(`Audience member joined game ${gameId}`);
+    } catch (error) {
+      console.error('Error in audience:join:', error);
+    }
+  });
+
   // Evaluator starts the game round
   socket.on('game:start', async ({ gameId, countdownSeconds }) => {
     if (!socket.isEvaluator) return;
