@@ -19,7 +19,6 @@ const TeamsList = () => import('./pages/teams/TeamsList.vue');
 const TeamForm = () => import('./pages/teams/TeamForm.vue');
 const TeamBoard = () => import('./pages/teamboard/TeamBoard.vue');
 const TimeGameDashboard = () => import('./pages/dashboard/TimeGameDashboard.vue');
-const AudienceDashboard = () => import('./pages/audience/AudienceDashboard.vue');
 const NotFound = () => import('./pages/NotFound.vue');
 
 
@@ -59,8 +58,8 @@ const router = createRouter({
     { path: '/teams/:id/edit', component: TeamForm },
     { path: '/teamboard', component: TeamBoard },
     { path: '/teamboard/:code', component: TeamBoard, props: true },
-    { path: '/audience', component: AudienceDashboard },
-    { path: '/audience/:id', component: AudienceDashboard, props: true },
+    { path: '/audience', component: TimeGameDashboard },
+    { path: '/audience/:id', component: TimeGameDashboard, props: true },
     { path: '/:notFound(.*)', component: NotFound }
   ]
 });
