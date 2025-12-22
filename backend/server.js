@@ -2150,14 +2150,16 @@ io.on('connection', (socket) => {
         points
       });
 
-      // Notify evaluators
-      io.to(`evaluator:${socket.gameId}`).emit('team:pressed', {
+      // Notify evaluators and audience (game room)
+      const pressedData = {
         teamId: socket.teamId,
         teamName: socket.teamName,
         reactionTimeMs,
         displayTime: (reactionTimeMs / 1000).toFixed(1),
         points
-      });
+      };
+      io.to(`evaluator:${socket.gameId}`).emit('team:pressed', pressedData);
+      io.to(`game:${socket.gameId}`).emit('team:pressed', pressedData);
 
       console.log(`Team ${socket.teamName} pressed at ${reactionTimeMs}ms = ${points} points`);
 

@@ -150,6 +150,23 @@ export default {
         this.socketConnected = false;
       });
 
+      // Handle current game state when joining mid-game
+      this.socket.on('game:state', (data) => {
+        console.log('Game state received:', data);
+        if (data.status === 'running') {
+          this.gameState = 'running';
+        } else if (data.status === 'completed') {
+          this.gameState = 'completed';
+        }
+        // Load existing results
+        if (data.results && data.results.length > 0) {
+          this.roundResults = data.results.map(r => ({
+            ...r,
+            displayTime: r.displayTime || (r.reactionTimeMs / 1000).toFixed(1)
+          }));
+        }
+      });
+
       this.socket.on('game:countdown', (data) => {
         console.log('Countdown:', data);
         this.gameState = 'countdown';
