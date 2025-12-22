@@ -681,7 +681,9 @@ export default {
           this.teamCodes.push({
             teamId,
             code: data.code,
-            status: 'available'
+            status: 'available',
+            isSelected: true,
+            offlineAllowed: false
           });
         }
       } catch (error) {
@@ -724,7 +726,9 @@ export default {
             this.teamCodes.push({
               teamId,
               code,
-              status: 'available'
+              status: 'available',
+              isSelected: true,
+              offlineAllowed: false
             });
           }
         });
