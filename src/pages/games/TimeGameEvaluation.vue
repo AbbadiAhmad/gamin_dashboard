@@ -90,13 +90,6 @@
           </div>
         </div>
       </div>
-
-      <!-- Bulk Actions -->
-      <div class="bulk-actions">
-        <base-button mode="flat" @click="generateCodesForSelected" :disabled="selectedTeamsWithoutCodes.length === 0">
-          Generate Codes for Selected ({{ selectedTeamsWithoutCodes.length }})
-        </base-button>
-      </div>
     </div>
 
     <!-- Game Controls -->
@@ -135,13 +128,21 @@
         <div class="manual-time-list">
           <div v-for="code in offlineTeamsWithoutResults" :key="code.teamId" class="manual-time-row">
             <span class="team-label">{{ code.teamName }}</span>
+            <button
+              class="action-btn capture"
+              @click="captureTime(code.teamId)"
+              :disabled="!gameStartTime"
+              title="Capture current elapsed time"
+            >
+              Capture
+            </button>
             <input
               type="number"
               step="0.1"
               min="0"
               :max="game.maximumPoint / 10"
               :value="manualTimeInput[code.teamId] ? manualTimeInput[code.teamId].time : ''"
-              @input="e => { if(!manualTimeInput[code.teamId]) manualTimeInput[code.teamId] = { time: '', show: true }; manualTimeInput[code.teamId].time = e.target.value; }"
+              @input="e => { if(!manualTimeInput[code.teamId]) manualTimeInput[code.teamId] = { time: '' }; manualTimeInput[code.teamId].time = e.target.value; }"
               placeholder="Time (s)"
               class="time-input"
             />
@@ -240,8 +241,9 @@ export default {
       copied: false,
       copiedAudience: false,
       eventLog: [],
-      manualTimeInput: {}, // teamId -> { time: '', show: false }
-      loadingManualTime: false
+      manualTimeInput: {}, // teamId -> { time: '' }
+      loadingManualTime: false,
+      gameStartTime: null // Track when the game started for manual time capture
     };
   },
   computed: {
@@ -326,11 +328,59 @@ export default {
 
         await this.loadGroupTeams();
         await this.loadAccessCodes();
+        await this.generateCodesForAllTeams();
         await this.loadEventLog();
       } catch (error) {
         this.error = error.message || 'Failed to load data';
       }
       this.isLoading = false;
+    },
+
+    async generateCodesForAllTeams() {
+      // Get all teams without codes
+      const teamsWithoutCodes = this.groupTeams
+        .filter(t => !this.getTeamCode(t.id))
+        .map(t => t.id);
+
+      if (teamsWithoutCodes.length === 0) return;
+
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_BASE_URL}/games/${this.id}/access-codes/generate-bulk`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ teamIds: teamsWithoutCodes })
+        });
+
+        if (!response.ok) {
+          console.error('Failed to auto-generate codes');
+          return;
+        }
+
+        const data = await response.json();
+
+        // Update local state
+        data.codes.forEach(({ teamId, code }) => {
+          const existing = this.teamCodes.find(c => c.teamId === teamId);
+          if (existing) {
+            existing.code = code;
+            existing.status = 'available';
+          } else {
+            this.teamCodes.push({
+              teamId,
+              code,
+              status: 'available',
+              isSelected: true,
+              offlineAllowed: false
+            });
+          }
+        });
+      } catch (error) {
+        console.error('Failed to auto-generate codes:', error);
+      }
     },
 
     async loadGroupTeams() {
@@ -451,6 +501,7 @@ export default {
         console.log('GO!');
         this.gameState = 'running';
         this.countdownDisplay = 'GO!';
+        this.gameStartTime = Date.now(); // Track game start time for manual time capture
 
         // Show discard button after 3 seconds
         this.discardTimeout = setTimeout(() => {
@@ -608,6 +659,20 @@ export default {
       } else {
         this.manualTimeInput[teamId].show = !this.manualTimeInput[teamId].show;
       }
+    },
+
+    captureTime(teamId) {
+      if (!this.gameStartTime) return;
+
+      // Calculate elapsed time since game started
+      const elapsedMs = Date.now() - this.gameStartTime;
+      const elapsedSeconds = (elapsedMs / 1000).toFixed(1);
+
+      // Fill in the input field
+      if (!this.manualTimeInput[teamId]) {
+        this.manualTimeInput[teamId] = { time: '' };
+      }
+      this.manualTimeInput[teamId].time = elapsedSeconds;
     },
 
     async submitManualTime(teamId) {
@@ -973,6 +1038,21 @@ export default {
 
 .action-btn.generate:hover {
   background: #bbdefb;
+}
+
+.action-btn.capture {
+  background: #fff8e1;
+  color: #f57f17;
+}
+
+.action-btn.capture:hover {
+  background: #ffecb3;
+}
+
+.action-btn.capture:disabled {
+  background: #f5f5f5;
+  color: #bdbdbd;
+  cursor: not-allowed;
 }
 
 .action-btn.reset {
