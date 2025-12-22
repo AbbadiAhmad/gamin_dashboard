@@ -22,6 +22,10 @@ export default {
     // Check if setup is complete
     try {
       const response = await fetch(`${API_BASE_URL}/setup/status`);
+      if (!response.ok) {
+        console.error('Setup status check failed:', response.status);
+        return;
+      }
       const data = await response.json();
 
       if (!data.isSetupComplete) {
