@@ -2034,6 +2034,7 @@ io.on('connection', (socket) => {
       // Store game state
       const gameState = {
         status: 'countdown',
+        phase: 'countdown',
         goTime,
         maxTimeMs,
         countdownSeconds: countdown,
@@ -2069,6 +2070,7 @@ io.on('connection', (socket) => {
         const state = activeGames.get(parseInt(gameId));
         if (state && state.status === 'countdown') {
           state.status = 'running';
+          state.phase = 'running';
           state.goTime = Date.now();
           io.to(`game:${gameId}`).emit('game:go', {
             goTime: state.goTime,
@@ -2353,11 +2355,12 @@ async function endRound(gameId) {
   if (gameState.endTimeout) clearTimeout(gameState.endTimeout);
 
   gameState.status = 'completed';
+  gameState.phase = 'completed';
 
-  // Get all teams and mark timeouts
+  // Get all teams with their offline status
   try {
     const [codes] = await pool.query(`
-      SELECT tac.team_id, t.name as team_name
+      SELECT tac.team_id, t.name as team_name, tac.offline_allowed, tac.is_selected
       FROM team_access_codes tac
       JOIN teams t ON t.id = tac.team_id
       WHERE tac.game_id = ?
@@ -2365,10 +2368,18 @@ async function endRound(gameId) {
 
     const results = [];
     for (const code of codes) {
+      // Skip teams not selected for this round
+      if (!code.is_selected) continue;
+
       if (gameState.results.has(code.team_id)) {
         results.push(gameState.results.get(code.team_id));
+      } else if (code.offline_allowed) {
+        // Offline teams without results - don't mark as timeout yet
+        // They can still be captured manually or connect later
+        // Skip them from results for now
+        continue;
       } else {
-        // Timeout - didn't press
+        // Non-offline team that didn't press - timeout
         results.push({
           teamId: code.team_id,
           teamName: code.team_name,
