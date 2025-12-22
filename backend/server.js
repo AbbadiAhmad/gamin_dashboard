@@ -1883,6 +1883,24 @@ io.on('connection', (socket) => {
         offlineAllowed: accessCode.offline_allowed === 1
       });
 
+      // Send current game state if game is running
+      const gameState = activeGames.get(parseInt(gameId));
+      if (gameState) {
+        const teamResult = gameState.results.get(accessCode.team_id);
+        socket.emit('team:state', {
+          phase: gameState.phase, // 'countdown', 'running', 'completed'
+          goTime: gameState.goTime,
+          maxTimeMs: gameState.maxTimeMs,
+          selectedTeams: Array.from(gameState.selectedTeams || []),
+          result: teamResult ? {
+            reactionTimeMs: teamResult.reactionTimeMs,
+            displayTime: (teamResult.reactionTimeMs / 1000).toFixed(1),
+            points: teamResult.points,
+            manualEntry: teamResult.manualEntry || false
+          } : null
+        });
+      }
+
       // Notify evaluators
       io.to(`evaluator:${gameId}`).emit('team:connected', {
         teamId: accessCode.team_id,

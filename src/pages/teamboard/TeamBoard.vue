@@ -121,7 +121,8 @@ export default {
       confirmed: false,
       gameState: '',
       isSelected: true,
-      offlineAllowed: false
+      offlineAllowed: false,
+      wakeLock: null
     };
   },
   async mounted() {
@@ -133,11 +134,25 @@ export default {
 
     // Sync time with server
     await this.syncTime();
+
+    // Re-acquire wake lock when page becomes visible
+    document.addEventListener('visibilitychange', this.handleVisibilityChange);
   },
   beforeUnmount() {
+    document.removeEventListener('visibilitychange', this.handleVisibilityChange);
     this.cleanup();
   },
   methods: {
+    handleVisibilityChange() {
+      // Re-acquire wake lock when page becomes visible during active game states
+      if (document.visibilityState === 'visible') {
+        const activeStates = ['countdown', 'go', 'result', 'results'];
+        if (activeStates.includes(this.state)) {
+          this.requestWakeLock();
+        }
+      }
+    },
+
     cleanup() {
       if (this.socket) {
         this.socket.disconnect();
@@ -150,6 +165,31 @@ export default {
       if (this.elapsedInterval) {
         clearInterval(this.elapsedInterval);
         this.elapsedInterval = null;
+      }
+      this.releaseWakeLock();
+    },
+
+    async requestWakeLock() {
+      if ('wakeLock' in navigator) {
+        try {
+          this.wakeLock = await navigator.wakeLock.request('screen');
+          console.log('Wake Lock acquired');
+
+          // Re-acquire wake lock if released (e.g., tab becomes visible again)
+          this.wakeLock.addEventListener('release', () => {
+            console.log('Wake Lock released');
+          });
+        } catch (err) {
+          console.log('Wake Lock error:', err.message);
+        }
+      }
+    },
+
+    releaseWakeLock() {
+      if (this.wakeLock) {
+        this.wakeLock.release();
+        this.wakeLock = null;
+        console.log('Wake Lock released manually');
       }
     },
 
@@ -245,6 +285,64 @@ export default {
         }
       });
 
+      // Handle state restoration on reconnect
+      this.socket.on('team:state', (data) => {
+        console.log('Team state received:', data);
+
+        // Check if we're selected for this round
+        if (data.selectedTeams && !data.selectedTeams.includes(this.teamId)) {
+          this.isSelected = false;
+          this.state = 'not-selected';
+          this.gameState = 'not-selected';
+          return;
+        }
+
+        this.isSelected = true;
+        this.goTime = data.goTime;
+        this.maxTimeMs = data.maxTimeMs;
+
+        // If we already have a result (pressed or manual capture)
+        if (data.result) {
+          this.pressed = true;
+          this.displayTime = data.result.displayTime;
+          this.points = data.result.points;
+          this.state = 'result';
+          this.gameState = 'result';
+          this.requestWakeLock();
+          return;
+        }
+
+        // Set state based on current phase
+        if (data.phase === 'running') {
+          this.state = 'go';
+          this.gameState = 'go';
+          this.pressed = false;
+          this.startElapsedTimer();
+          this.requestWakeLock();
+        } else if (data.phase === 'countdown') {
+          this.state = 'countdown';
+          this.gameState = 'countdown';
+          this.requestWakeLock();
+        } else if (data.phase === 'completed') {
+          this.state = 'waiting';
+          this.gameState = 'waiting';
+        }
+      });
+
+      // Handle when moderator captures time for this team (or any team pressed)
+      this.socket.on('team:pressed', (data) => {
+        console.log('Team pressed event:', data);
+        // Check if this is our own result (manual capture by moderator)
+        if (data.teamId === this.teamId && !this.pressed) {
+          this.pressed = true;
+          this.displayTime = data.displayTime;
+          this.points = data.points;
+          this.state = 'result';
+          this.gameState = 'result';
+          this.stopElapsedTimer();
+        }
+      });
+
       this.socket.on('team:rejected', (data) => {
         console.log('Team rejected:', data);
         this.error = data.reason;
@@ -269,6 +367,9 @@ export default {
         this.state = 'countdown';
         this.gameState = 'countdown';
 
+        // Request wake lock to keep screen on
+        this.requestWakeLock();
+
         // Start countdown display
         this.startCountdown(data.startsAt, data.serverTime);
       });
@@ -282,6 +383,9 @@ export default {
         this.gameState = 'go';
         this.goTime = data.goTime;
         this.maxTimeMs = data.maxTimeMs;
+
+        // Ensure wake lock is active
+        this.requestWakeLock();
 
         // Start elapsed timer
         this.startElapsedTimer();
@@ -341,6 +445,7 @@ export default {
           this.gameState = 'waiting';
           this.confirmed = false;
           this.isSelected = true; // Reset selection for next round
+          this.releaseWakeLock();
         }, 2000);
       });
 
