@@ -172,16 +172,21 @@ export default {
     async requestWakeLock() {
       if ('wakeLock' in navigator) {
         try {
+          // Release existing lock first to prevent issues
+          if (this.wakeLock) {
+            try {
+              await this.wakeLock.release();
+            } catch (e) {
+              // Ignore release errors
+            }
+          }
           this.wakeLock = await navigator.wakeLock.request('screen');
           console.log('Wake Lock acquired');
-
-          // Re-acquire wake lock if released (e.g., tab becomes visible again)
-          this.wakeLock.addEventListener('release', () => {
-            console.log('Wake Lock released');
-          });
         } catch (err) {
           console.log('Wake Lock error:', err.message);
         }
+      } else {
+        console.log('Wake Lock API not supported');
       }
     },
 

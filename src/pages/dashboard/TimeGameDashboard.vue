@@ -87,7 +87,8 @@ export default {
       countdownInterval: null,
       roundResults: [],
       maxTimeMs: 10000,
-      darkMode: true
+      darkMode: true,
+      wakeLock: null
     };
   },
   computed: {
@@ -100,11 +101,45 @@ export default {
       this.gameCode = this.id;
       await this.loadGame();
     }
+    // Re-acquire wake lock when page becomes visible
+    document.addEventListener('visibilitychange', this.handleVisibilityChange);
   },
   beforeUnmount() {
+    document.removeEventListener('visibilitychange', this.handleVisibilityChange);
     this.cleanup();
   },
   methods: {
+    handleVisibilityChange() {
+      if (document.visibilityState === 'visible') {
+        const activeStates = ['countdown', 'running', 'completed'];
+        if (activeStates.includes(this.gameState)) {
+          this.requestWakeLock();
+        }
+      }
+    },
+
+    async requestWakeLock() {
+      if ('wakeLock' in navigator) {
+        try {
+          // Release existing lock first
+          if (this.wakeLock) {
+            await this.wakeLock.release();
+          }
+          this.wakeLock = await navigator.wakeLock.request('screen');
+          console.log('Dashboard Wake Lock acquired');
+        } catch (err) {
+          console.log('Wake Lock error:', err.message);
+        }
+      }
+    },
+
+    releaseWakeLock() {
+      if (this.wakeLock) {
+        this.wakeLock.release();
+        this.wakeLock = null;
+      }
+    },
+
     cleanup() {
       if (this.socket) {
         this.socket.disconnect();
@@ -113,6 +148,7 @@ export default {
       if (this.countdownInterval) {
         clearInterval(this.countdownInterval);
       }
+      this.releaseWakeLock();
     },
 
     async loadGame() {
@@ -173,23 +209,32 @@ export default {
         this.roundResults = [];
         this.maxTimeMs = data.maxTimeMs;
         this.startCountdown(data.startsAt);
+        this.requestWakeLock();
       });
 
       this.socket.on('game:go', () => {
         this.gameState = 'running';
         this.countdownDisplay = 'GO!';
+        this.requestWakeLock();
       });
 
       this.socket.on('team:pressed', (data) => {
         console.log('Team pressed:', data);
-        const existing = this.roundResults.find(r => r.teamId === data.teamId);
-        if (existing) {
-          Object.assign(existing, data);
-        } else {
-          this.roundResults.push({
+        const existingIndex = this.roundResults.findIndex(r => r.teamId === data.teamId);
+        if (existingIndex >= 0) {
+          // Replace the existing entry to trigger reactivity
+          const updated = {
+            ...this.roundResults[existingIndex],
             ...data,
-            displayTime: (data.reactionTimeMs / 1000).toFixed(1)
-          });
+            displayTime: data.displayTime || (data.reactionTimeMs / 1000).toFixed(1)
+          };
+          this.roundResults.splice(existingIndex, 1, updated);
+        } else {
+          // Create new array to trigger reactivity
+          this.roundResults = [...this.roundResults, {
+            ...data,
+            displayTime: data.displayTime || (data.reactionTimeMs / 1000).toFixed(1)
+          }];
         }
       });
 
