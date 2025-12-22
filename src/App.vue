@@ -26,7 +26,9 @@ export default {
         console.error('Setup status check failed:', response.status);
         return;
       }
-      const data = await response.json();
+      const text = await response.text();
+      console.log('Setup status response:', text);
+      const data = JSON.parse(text);
 
       if (!data.isSetupComplete) {
         // Redirect to setup page if not complete
