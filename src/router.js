@@ -58,8 +58,8 @@ const router = createRouter({
     { path: '/teams/:id/edit', component: TeamForm },
     { path: '/teamboard', component: TeamBoard },
     { path: '/teamboard/:code', component: TeamBoard, props: true },
-    { path: '/audience', component: TimeGameDashboard },
-    { path: '/audience/:id', component: TimeGameDashboard, props: true },
+    { path: '/dashboard/audience', component: TimeGameDashboard },
+    { path: '/dashboard/audience/:id', component: TimeGameDashboard, props: true },
     { path: '/:notFound(.*)', component: NotFound }
   ]
 });

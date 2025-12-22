@@ -25,7 +25,7 @@
                   Dashboard</router-link>
               </li>
               <li>
-                <router-link to="/dashboard/time-game" @click="closeDropdown(); closeMobileMenu()">Time Game</router-link>
+                <router-link to="/dashboard/audience" @click="closeDropdown(); closeMobileMenu()">Time Game</router-link>
               </li>
 
             </ul>
